@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Galaxon\tests;
 
-use Galaxon\Units\Angle;
 use DivisionByZeroError;
 use Galaxon\Core\Floats;
+use Galaxon\Units\MeasurementTypes\Angle;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use ValueError;

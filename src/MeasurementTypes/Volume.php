@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Galaxon\Units;
+namespace Galaxon\Units\MeasurementTypes;
 
+use Galaxon\Units\Measurement;
 use Override;
 
 class Volume extends Measurement

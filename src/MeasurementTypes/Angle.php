@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Galaxon\Units;
+namespace Galaxon\Units\MeasurementTypes;
 
 use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
+use Galaxon\Units\Measurement;
+use Galaxon\Units\TypeError;
 use Override;
 use ValueError;
 
