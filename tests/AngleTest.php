@@ -43,7 +43,7 @@ final class AngleTest extends TestCase
     public function testConstructorWithInfinity(): void
     {
         $this->expectException(ValueError::class);
-        new Angle(INF);
+        new Angle(INF, 'rad');
     }
 
     /**
@@ -73,10 +73,10 @@ final class AngleTest extends TestCase
     public function testConstructorAndGettersRoundtrip(): void
     {
         $a = new Angle(180.0, 'deg');
-        $this->assertFloatEquals(M_PI, $a->to('rad'));
-        $this->assertFloatEquals(180.0, $a->to('deg'));
-        $this->assertFloatEquals(200.0, $a->to('grad'));
-        $this->assertFloatEquals(0.5, $a->to('turn'));
+        $this->assertFloatEquals(M_PI, $a->to('rad')->value);
+        $this->assertFloatEquals(180.0, $a->to('deg')->value);
+        $this->assertFloatEquals(200.0, $a->to('grad')->value);
+        $this->assertFloatEquals(0.5, $a->to('turn')->value);
     }
 
     /**
@@ -85,30 +85,33 @@ final class AngleTest extends TestCase
      * Verifies that DMS values round-trip correctly and that floating-point
      * precision near boundaries produces expected results.
      */
-    public function testDmsRoundtripAndCarry(): void
+    public function testPartsRoundtripAndCarry(): void
     {
-        $a = Angle::fromDMS(12, 34, 56);
-        [$d, $m, $s] = $a->toDMS(Angle::UNIT_ARCSECOND);
-        $this->assertFloatEquals(12.0, $d);
-        $this->assertFloatEquals(34.0, $m);
-        $this->assertFloatEquals(56.0, $s);
+        $a = Angle::fromParts(12, 34, 56);
+        $parts = $a->toParts('arcsec');
+        $this->assertEquals(1, $parts['sign']);
+        $this->assertEquals(12, $parts['deg']);
+        $this->assertEquals(34, $parts['arcmin']);
+        $this->assertEquals(56, $parts['arcsec']);
 
         // Verify floating-point precision at seconds and minutes boundaries.
         $b = new Angle(29.999999999, 'deg');
-        [$d2, $m2, $s2] = $b->toDMS(Angle::UNIT_ARCSECOND);
-        $this->assertFloatEquals(29, $d2);
-        $this->assertFloatEquals(59, $m2);
-        $this->assertFloatEquals(59.9999964, $s2);
+        $parts2 = $b->toParts('arcsec');
+        $this->assertEquals(1, $parts2['sign']);
+        $this->assertEquals(29, $parts2['deg']);
+        $this->assertEquals(59, $parts2['arcmin']);
+        $this->assertFloatEquals(59.9999964, $parts2['arcsec']);
 
         // Verify floating-point precision at minutes boundary.
         $b = new Angle(29.999999999, 'deg');
-        [$d3, $m3] = $b->toDMS(Angle::UNIT_ARCMINUTE);
-        $this->assertFloatEquals(29, $d3);
-        $this->assertFloatEquals(59.99999994, $m3);
+        $parts3 = $b->toParts('arcmin');
+        $this->assertEquals(1, $parts3['sign']);
+        $this->assertEquals(29, $parts3['deg']);
+        $this->assertFloatEquals(59.99999994, $parts3['arcmin']);
 
-        // Test that invalid smallest unit index throws ValueError.
+        // Test that invalid smallest unit throws ValueError.
         $this->expectException(ValueError::class);
-        $x = $b->toDMS(3);
+        $x = $b->toParts('invalid');
     }
 
     /**
@@ -117,11 +120,12 @@ final class AngleTest extends TestCase
      * Verifies that requesting only degrees returns a single-element array
      * with the correct decimal degree value.s
      */
-    public function testToDmsWithDegreesOnly(): void
+    public function testToPartsWithDegreesOnly(): void
     {
         $a = new Angle(45.5, 'deg');
-        [$d] = $a->toDMS(Angle::UNIT_DEGREE);
-        $this->assertFloatEquals(45.5, $d);
+        $parts = $a->toParts('deg');
+        $this->assertEquals(1, $parts['sign']);
+        $this->assertFloatEquals(45.5, $parts['deg']);
     }
 
     /**
@@ -130,20 +134,22 @@ final class AngleTest extends TestCase
      * Verifies that negative angles correctly apply the sign to all components
      * when converted to DMS format.
      */
-    public function testToDmsWithNegativeAngles(): void
+    public function testToPartsWithNegativeAngles(): void
     {
-        $a = Angle::fromDMS(-12, -34, -56);
+        $a = Angle::fromParts(12, 34, 56, -1);
 
         // Test arcseconds
-        [$d, $m, $s] = $a->toDMS(Angle::UNIT_ARCSECOND);
-        $this->assertFloatEquals(-12.0, $d);
-        $this->assertFloatEquals(-34.0, $m);
-        $this->assertFloatEquals(-56.0, $s);
+        $parts = $a->toParts('arcsec');
+        $this->assertEquals(-1, $parts['sign']);
+        $this->assertEquals(12, $parts['deg']);
+        $this->assertEquals(34, $parts['arcmin']);
+        $this->assertEquals(56, $parts['arcsec']);
 
         // Test arcminutes
-        [$d2, $m2] = $a->toDMS(Angle::UNIT_ARCMINUTE);
-        $this->assertFloatEquals(-12.0, $d2);
-        $this->assertFloatEquals(-34.933333, $m2, 1e-6);
+        $parts2 = $a->toParts('arcmin');
+        $this->assertEquals(-1, $parts2['sign']);
+        $this->assertEquals(12, $parts2['deg']);
+        $this->assertFloatEquals(34.933333, $parts2['arcmin'], 1e-6);
     }
 
     /**
@@ -152,13 +158,14 @@ final class AngleTest extends TestCase
      * Verifies that a zero angle converts correctly to DMS format with
      * all zero components.
      */
-    public function testToDmsWithZeroAngle(): void
+    public function testToPartsWithZeroAngle(): void
     {
         $a = new Angle(0, 'deg');
-        [$d, $m, $s] = $a->toDMS(Angle::UNIT_ARCSECOND);
-        $this->assertFloatEquals(0.0, $d);
-        $this->assertFloatEquals(0.0, $m);
-        $this->assertFloatEquals(0.0, $s);
+        $parts = $a->toParts('arcsec');
+        $this->assertEquals(1, $parts['sign']);
+        $this->assertEquals(0, $parts['deg']);
+        $this->assertEquals(0, $parts['arcmin']);
+        $this->assertEquals(0, $parts['arcsec']);
     }
 
     /**
@@ -172,12 +179,12 @@ final class AngleTest extends TestCase
         $this->assertAngleEquals(new Angle(12, 'deg'), Angle::parse('12deg'));
         $this->assertAngleEquals(new Angle(12, 'deg'), Angle::parse('12 deg'));
         $this->assertAngleEquals(new Angle(0.5, 'turn'), Angle::parse('0.5 turn'));
-        $this->assertAngleEquals(new Angle(M_PI), Angle::parse(M_PI . 'rad'));
+        $this->assertAngleEquals(new Angle(M_PI, 'rad'), Angle::parse(M_PI . 'rad'));
 
         // Unicode symbols (°, ′, ″).
-        $this->assertAngleEquals(Angle::fromDMS(12, 34, 56), Angle::parse('12° 34′ 56″'));
+        $this->assertAngleEquals(Angle::fromParts(12, 34, 56), Angle::parse('12° 34′ 56″'));
         // ASCII fallback (°, ', ").
-        $this->assertAngleEquals(Angle::fromDMS(-12, -34, -56), Angle::parse("-12°34'56\""));
+        $this->assertAngleEquals(Angle::fromParts(12, 34, 56, -1), Angle::parse("-12°34'56\""));
     }
 
     /**
@@ -207,18 +214,18 @@ final class AngleTest extends TestCase
     public function testWrapUnsignedAndSigned(): void
     {
         // Unsigned range [0, τ) - test values in the middle of ranges
-        $a = new Angle(3 * M_PI);  // 1.5 turns
-        $this->assertFloatEquals(M_PI, $a->wrap(false)->to('rad'));
+        $a = new Angle(3 * M_PI, 'rad');  // 1.5 turns
+        $this->assertFloatEquals(M_PI, $a->wrap(false)->to('rad')->value);
 
-        $b = new Angle(-3 * M_PI / 2);  // -0.75 turns
-        $this->assertFloatEquals(M_PI / 2, $b->wrap(false)->to('rad'));
+        $b = new Angle(-3 * M_PI / 2, 'rad');  // -0.75 turns
+        $this->assertFloatEquals(M_PI / 2, $b->wrap(false)->to('rad')->value);
 
         // Signed range (-π, π] - test values in quadrants
-        $c = new Angle(5 * M_PI / 4);  // 225 degrees, should wrap to -135 degrees
-        $this->assertFloatEquals(-3 * M_PI / 4, $c->wrap(true)->to('rad'));
+        $c = new Angle(5 * M_PI / 4, 'rad');  // 225 degrees, should wrap to -135 degrees
+        $this->assertFloatEquals(-3 * M_PI / 4, $c->wrap(true)->to('rad')->value);
 
-        $d = new Angle(-5 * M_PI / 4);  // -225 degrees, should wrap to 135 degrees
-        $this->assertFloatEquals(3 * M_PI / 4, $d->wrap(true)->to('rad'));
+        $d = new Angle(-5 * M_PI / 4, 'rad');  // -225 degrees, should wrap to 135 degrees
+        $this->assertFloatEquals(3 * M_PI / 4, $d->wrap(true)->to('rad')->value);
     }
 
     /**
@@ -231,13 +238,13 @@ final class AngleTest extends TestCase
         $a = new Angle(10, 'deg');
 
         $sum = $a->add(new Angle(20, 'deg'));
-        $this->assertFloatEquals(30.0, $sum->to('deg'));
+        $this->assertFloatEquals(30.0, $sum->to('deg')->value);
 
         $diff = $a->sub(new Angle(40, 'deg'));
-        $this->assertFloatEquals(-30.0, $diff->to('deg'));
+        $this->assertFloatEquals(-30.0, $diff->to('deg')->value);
 
         $scaled = $a->mul(3)->div(2);
-        $this->assertFloatEquals(15.0, $scaled->to('deg'));
+        $this->assertFloatEquals(15.0, $scaled->to('deg')->value);
     }
 
     /**
@@ -321,13 +328,13 @@ final class AngleTest extends TestCase
      */
     public function testHyperbolicFunctions(): void
     {
-        $a = new Angle(1.0);
+        $a = new Angle(1.0, 'rad');
         $this->assertFloatEquals(sinh(1.0), $a->sinh());
         $this->assertFloatEquals(cosh(1.0), $a->cosh());
         $this->assertFloatEquals(tanh(1.0), $a->tanh());
 
         // At zero.
-        $zero = new Angle(0);
+        $zero = new Angle(0, 'rad');
         $this->assertFloatEquals(0.0, $zero->sinh());
         $this->assertFloatEquals(1.0, $zero->cosh());
         $this->assertFloatEquals(0.0, $zero->tanh());
@@ -341,7 +348,7 @@ final class AngleTest extends TestCase
      */
     public function testSechCschCoth(): void
     {
-        $a = new Angle(1.0);
+        $a = new Angle(1.0, 'rad');
         // sech(1) = 1/cosh(1)
         $this->assertFloatEquals(1 / cosh(1.0), $a->sech());
         // csch(1) = 1/sinh(1)
@@ -350,7 +357,7 @@ final class AngleTest extends TestCase
         $this->assertFloatEquals(cosh(1.0) / sinh(1.0), $a->coth());
 
         // At zero: csch and coth have singularities.
-        $zero = new Angle(0);
+        $zero = new Angle(0, 'rad');
         $this->assertFloatEquals(1.0, $zero->sech()); // sech(0) = 1/cosh(0) = 1
         $this->assertFloatEquals(INF, $zero->csch()); // csch(0) = ∞
         $this->assertFloatEquals(INF, $zero->coth()); // coth(0) = ∞
@@ -365,17 +372,17 @@ final class AngleTest extends TestCase
     public function testFormatVariants(): void
     {
         $a = new Angle(12.5, 'deg');
-        $this->assertSame('0.2181661565rad', $a->format('rad', 'f', 10));
-        $this->assertSame('12.50deg', $a->format('deg', 'f', 2));
-        $this->assertSame('13.888888889grad', $a->format('grad', 'f', 9));
-        $this->assertSame('0.0347222222turn', $a->format('turn', 'f', 10));
+        $this->assertSame('0.2181661565 rad', $a->to('rad')->format('f', 10));
+        $this->assertSame('12.50 deg', $a->to('deg')->format('f', 2));
+        $this->assertSame('13.888888889 grad', $a->to('grad')->format('f', 9));
+        $this->assertSame('0.0347222222 turn', $a->to('turn')->format('f', 10));
 
         // DMS via format.
-        $this->assertSame('12° 30′ 0″', $a->formatDMS(Angle::UNIT_ARCSECOND, 0));
+        $this->assertSame('12° 30′ 0″', $a->formatParts('arcsec', 0));
 
         // Verify that negative decimals value throws ValueError.
         $this->expectException(ValueError::class);
-        $a->format('rad', 'f', -1);
+        $a->format('f', -1);
     }
 
     /**
@@ -387,8 +394,8 @@ final class AngleTest extends TestCase
     public function testFormatDmsNoCarryNeeded(): void
     {
         // Values that shouldn't trigger carry
-        $a = Angle::fromDMS(29, 59, 59.994);
-        $this->assertSame('29° 59′ 59.994″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $a = Angle::fromParts(29, 59, 59.994);
+        $this->assertSame('29° 59′ 59.994″', $a->formatParts('arcsec', 3));
     }
 
     /**
@@ -401,31 +408,31 @@ final class AngleTest extends TestCase
     {
         // Test degree rounding (29.9999... → 30°)
         $a = new Angle(29.9999999999, 'deg');
-        $this->assertSame('30.000°', $a->formatDMS(Angle::UNIT_DEGREE, 3));
-        $this->assertSame('30° 0.000′', $a->formatDMS(Angle::UNIT_ARCMINUTE, 3));
-        $this->assertSame('30° 0′ 0.000″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $this->assertSame('30.000°', $a->formatParts('deg', 3));
+        $this->assertSame('30° 0.000′', $a->formatParts('arcmin', 3));
+        $this->assertSame('30° 0′ 0.000″', $a->formatParts('arcsec', 3));
 
         // Test arcminute carry (29° 59.9999′ → 30° 0′)
-        $a = Angle::fromDMS(29, 59.9999999);
-        $this->assertSame('30° 0.000′', $a->formatDMS(Angle::UNIT_ARCMINUTE, 3));
+        $a = Angle::fromParts(29, 59.9999999);
+        $this->assertSame('30° 0.000′', $a->formatParts('arcmin', 3));
 
         // Test arcsecond carry (29° 59′ 59.9999″ → 30° 0′ 0″)
-        $a = Angle::fromDMS(29, 59, 59.9999999);
-        $this->assertSame('30° 0′ 0.000″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $a = Angle::fromParts(29, 59, 59.9999999);
+        $this->assertSame('30° 0′ 0.000″', $a->formatParts('arcsec', 3));
 
         // Test double carry (seconds → minutes → degrees)
-        $a = Angle::fromDMS(29, 59, 59.9999999);
-        $this->assertSame('30.000°', $a->formatDMS(Angle::UNIT_DEGREE, 3));
+        $a = Angle::fromParts(29, 59, 59.9999999);
+        $this->assertSame('30.000°', $a->formatParts('deg', 3));
 
         // Test mid-range carry (not at zero boundary)
-        $a = Angle::fromDMS(45, 59, 59.9995);
-        $this->assertSame('46° 0′ 0.000″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $a = Angle::fromParts(45, 59, 59.9995);
+        $this->assertSame('46° 0′ 0.000″', $a->formatParts('arcsec', 3));
 
         // Test negative angle carry
         $a = new Angle(-29.9999999999, 'deg');
-        $this->assertSame('-30.000°', $a->formatDMS(Angle::UNIT_DEGREE, 3));
-        $this->assertSame('-30° 0.000′', $a->formatDMS(Angle::UNIT_ARCMINUTE, 3));
-        $this->assertSame('-30° 0′ 0.000″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $this->assertSame('-30.000°', $a->formatParts('deg', 3));
+        $this->assertSame('-30° 0.000′', $a->formatParts('arcmin', 3));
+        $this->assertSame('-30° 0′ 0.000″', $a->formatParts('arcsec', 3));
     }
 
     /**
@@ -448,19 +455,19 @@ final class AngleTest extends TestCase
         for ($i = 0; $i < 500; $i++) {
             // Span a large range, including huge magnitudes.
             $rad = Floats::rand(-1e6, 1e6);
-            $a = new Angle($rad);
+            $a = new Angle($rad, 'rad');
 
             // Verify toX() / fromX() round-trips.
-            $this->assertFloatEquals($rad, new Angle($a->to('rad'))->to('rad'));
+            $this->assertFloatEquals($rad, $a->to('rad')->value);
 
-            $deg = $a->to('deg');
-            $this->assertFloatEquals($a->to('rad'), new Angle($deg, 'deg')->to('rad'));
+            $deg = $a->to('deg')->value;
+            $this->assertFloatEquals($a->to('rad')->value, new Angle($deg, 'deg')->to('rad')->value);
 
-            $grad = $a->to('grad');
-            $this->assertFloatEquals($a->to('rad'), new Angle($grad, 'grad')->to('rad'));
+            $grad = $a->to('grad')->value;
+            $this->assertFloatEquals($a->to('rad')->value, new Angle($grad, 'grad')->to('rad')->value);
 
-            $turn = $a->to('turn');
-            $this->assertFloatEquals($a->to('rad'), new Angle($turn, 'turn')->to('rad'));
+            $turn = $a->to('turn')->value;
+            $this->assertFloatEquals($a->to('rad')->value, new Angle($turn, 'turn')->to('rad')->value);
         }
     }
 
@@ -477,11 +484,11 @@ final class AngleTest extends TestCase
 
         for ($i = 0; $i < 200; $i++) {
             $rad = Floats::rand(-1000.0, 1000.0);
-            $a = new Angle($rad);
+            $a = new Angle($rad, 'rad');
 
             foreach ($units as $unit) {
                 // Use max float precision to ensure correct round-trip conversion.
-                $s = $a->format($unit, 'f', 17);
+                $s = $a->to($unit)->format('f', 17, false, false);
                 $b = Angle::parse($s);
 
                 $this->assertTrue(
@@ -525,19 +532,15 @@ final class AngleTest extends TestCase
      * Verifies that fromDegrees() correctly handles arcminutes and arcseconds
      * beyond their normal ranges (0-59) and mixed sign values.
      */
-    public function testDmsExtremesAndOutOfRangeParts(): void
+    public function testPartsExtremesAndOutOfRangeParts(): void
     {
         // Minutes/seconds beyond their usual ranges should still compute correctly.
-        $a = Angle::fromDMS(10, 120, 120); // 10° + 2° + 0.033...° = 12.033...
-        $this->assertFloatEquals(12.0333333333, $a->to('deg'), 1e-9);
-
-        // Mixed signs as documented (caller responsibility).
-        $b = Angle::fromDMS(-12, -90, 30); // -12 - 1.5 + 0.008333... = -13.491666...
-        $this->assertFloatEquals(-13.4916666667, $b->to('deg'), 1e-9);
+        $a = Angle::fromParts(10, 120, 120); // 10° + 2° + 0.033...° = 12.033...
+        $this->assertFloatEquals(12.0333333333, $a->to('deg')->value, 1e-9);
 
         // Exactly 60 seconds (should carry in formatting).
-        $a = Angle::fromDMS(29, 59, 60.0);
-        $this->assertSame('30° 0′ 0.000″', $a->formatDMS(Angle::UNIT_ARCSECOND, 3));
+        $a = Angle::fromParts(29, 59, 60.0);
+        $this->assertSame('30° 0′ 0.000″', $a->formatParts('arcsec', 3));
     }
 
     /**
@@ -550,12 +553,12 @@ final class AngleTest extends TestCase
     {
         $this->assertTrue(new Angle(12, 'deg')->equals(Angle::parse('12 deg')));
         $this->assertTrue(new Angle(0.25, 'turn')->equals(Angle::parse(' 0.25   turn ')));
-        $this->assertTrue(new Angle(M_PI)->equals(Angle::parse(sprintf('%.12frad', M_PI))));
+        $this->assertTrue(new Angle(M_PI, 'rad')->equals(Angle::parse(sprintf('%.12frad', M_PI))));
 
         // Unicode DMS symbols (°, ′, ″).
-        $this->assertTrue(Angle::fromDMS(12, 34, 56)->equals(Angle::parse('12° 34′ 56″')));
+        $this->assertTrue(Angle::fromParts(12, 34, 56)->equals(Angle::parse('12° 34′ 56″')));
         // ASCII DMS fallback (°, ', ").
-        $this->assertTrue(Angle::fromDMS(-12, -34, -56)->equals(Angle::parse("-12°34'56\"")));
+        $this->assertTrue(Angle::fromParts(12, 34, 56, -1)->equals(Angle::parse("-12°34'56\"")));
 
         // Verify that invalid DMS format throws ValueError.
         $this->expectException(ValueError::class);
@@ -632,7 +635,7 @@ final class AngleTest extends TestCase
     public function testHyperbolicTrigFunctions(): void
     {
         $x = 0.5;
-        $a = new Angle($x);
+        $a = new Angle($x, 'rad');
 
         $this->assertFloatEquals(sinh($x), $a->sinh());
         $this->assertFloatEquals(cosh($x), $a->cosh());
@@ -657,8 +660,8 @@ final class AngleTest extends TestCase
      */
     public function testToString(): void
     {
-        $a = new Angle(M_PI);
-        $this->assertMatchesRegularExpression('/^\d+\.\d+rad$/', (string)$a);
+        $a = new Angle(M_PI, 'rad');
+        $this->assertMatchesRegularExpression('/^\d+\.\d+\s?rad$/', (string)$a);
     }
 
     /**
@@ -683,14 +686,14 @@ final class AngleTest extends TestCase
      */
     public function testEqualsWithEpsilonTolerance(): void
     {
-        $a = new Angle(1.0);
-        $b = new Angle(1.0 + Angle::RAD_EPSILON / 2);
+        $a = new Angle(1.0, 'rad');
+        $b = new Angle(1.0 + Angle::RAD_EPSILON / 2, 'rad');
 
         // Should be equal within epsilon
         $this->assertTrue($a->equals($b));
 
         // Should not be equal outside epsilon
-        $c = new Angle(1.0 + Angle::RAD_EPSILON * 2);
+        $c = new Angle(1.0 + Angle::RAD_EPSILON * 2, 'rad');
         $this->assertFalse($a->equals($c));
     }
 
@@ -717,8 +720,8 @@ final class AngleTest extends TestCase
      */
     public function testCompareEqualWithinEpsilon(): void
     {
-        $a = new Angle(1.0);
-        $b = new Angle(1.0 + Angle::RAD_EPSILON / 2);
+        $a = new Angle(1.0, 'rad');
+        $b = new Angle(1.0 + Angle::RAD_EPSILON / 2, 'rad');
 
         $this->assertSame(0, $a->compare($b));
     }
@@ -850,7 +853,7 @@ final class AngleTest extends TestCase
      */
     public function testValidUnits(): void
     {
-        $units = Angle::getOtherUnits();
+        $units = Angle::getUnitConverter()->getValidUnits();
 
         // Check it's an array
         $this->assertIsArray($units);
@@ -860,9 +863,6 @@ final class AngleTest extends TestCase
         foreach ($expectedUnits as $unit) {
             $this->assertContains($unit, $units);
         }
-
-        // Check count matches
-        $this->assertCount(count($expectedUnits), $units);
     }
 
     /**
@@ -870,9 +870,10 @@ final class AngleTest extends TestCase
      */
     public function testGetConversionFactorSameUnit(): void
     {
-        $this->assertSame(1.0, Angle::getConversion('deg', 'deg'));
-        $this->assertSame(1.0, Angle::getConversion('rad', 'rad'));
-        $this->assertSame(1.0, Angle::getConversion('grad', 'grad'));
+        $converter = Angle::getUnitConverter();
+        $this->assertSame(1.0, $converter->convert(1, 'deg', 'deg'));
+        $this->assertSame(1.0, $converter->convert(1, 'rad', 'rad'));
+        $this->assertSame(1.0, $converter->convert(1, 'grad', 'grad'));
     }
 
     /**
@@ -880,23 +881,25 @@ final class AngleTest extends TestCase
      */
     public function testGetConversionFactorDirectConversions(): void
     {
+        $converter = Angle::getUnitConverter();
+
         // Degrees to arcminutes: 1 deg = 60 arcmin
-        $this->assertEquals(60.0, Angle::getConversion('deg', 'arcmin'));
+        $this->assertEquals(60.0, $converter->convert(1, 'deg', 'arcmin'));
 
         // Degrees to arcseconds: 1 deg = 3600 arcsec
-        $this->assertEquals(3600.0, Angle::getConversion('deg', 'arcsec'));
+        $this->assertEquals(3600.0, $converter->convert(1, 'deg', 'arcsec'));
 
         // Arcminutes to arcseconds: 1 arcmin = 60 arcsec
-        $this->assertEquals(60.0, Angle::getConversion('arcmin', 'arcsec'));
+        $this->assertEquals(60.0, $converter->convert(1, 'arcmin', 'arcsec'));
 
         // Turn to degrees: 1 turn = 360 deg
-        $this->assertEquals(360.0, Angle::getConversion('turn', 'deg'));
+        $this->assertEquals(360.0, $converter->convert(1, 'turn', 'deg'));
 
         // Turn to gradians: 1 turn = 400 grad
-        $this->assertEquals(400.0, Angle::getConversion('turn', 'grad'));
+        $this->assertEquals(400.0, $converter->convert(1, 'turn', 'grad'));
 
         // Degrees to gradians: 1 grad = 0.9 deg
-        $this->assertEquals(0.9, Angle::getConversion('grad', 'deg'));
+        $this->assertEquals(0.9, $converter->convert(1, 'grad', 'deg'));
     }
 
     /**
@@ -904,19 +907,21 @@ final class AngleTest extends TestCase
      */
     public function testGetConversionFactorReciprocals(): void
     {
+        $converter = Angle::getUnitConverter();
+
         // deg <-> arcmin
-        $degToArcmin = Angle::getConversion('deg', 'arcmin');
-        $arcminToDeg = Angle::getConversion('arcmin', 'deg');
+        $degToArcmin = $converter->convert(1, 'deg', 'arcmin');
+        $arcminToDeg = $converter->convert(1, 'arcmin', 'deg');
         $this->assertFloatEquals(1.0, $degToArcmin * $arcminToDeg);
 
         // rad <-> deg
-        $radToDeg = Angle::getConversion('rad', 'deg');
-        $degToRad = Angle::getConversion('deg', 'rad');
+        $radToDeg = $converter->convert(1, 'rad', 'deg');
+        $degToRad = $converter->convert(1, 'deg', 'rad');
         $this->assertFloatEquals(1.0, $radToDeg * $degToRad);
 
         // grad <-> turn
-        $gradToTurn = Angle::getConversion('grad', 'turn');
-        $turnToGrad = Angle::getConversion('turn', 'grad');
+        $gradToTurn = $converter->convert(1, 'grad', 'turn');
+        $turnToGrad = $converter->convert(1, 'turn', 'grad');
         $this->assertFloatEquals(1.0, $gradToTurn * $turnToGrad);
     }
 
@@ -926,7 +931,7 @@ final class AngleTest extends TestCase
     public function testGetConversionFactorInvalidFromUnit(): void
     {
         $this->expectException(ValueError::class);
-        Angle::getConversion('banana', 'deg');
+        Angle::getUnitConverter()->convert(1, 'banana', 'deg');
     }
 
     /**
@@ -935,7 +940,7 @@ final class AngleTest extends TestCase
     public function testGetConversionFactorInvalidToUnit(): void
     {
         $this->expectException(ValueError::class);
-        Angle::getConversion('deg', 'banana');
+        Angle::getUnitConverter()->convert(1, 'deg', 'banana');
     }
 
     /**
@@ -943,20 +948,22 @@ final class AngleTest extends TestCase
      */
     public function testStaticConvert(): void
     {
+        $converter = Angle::getUnitConverter();
+
         // 180 degrees = π radians
-        $this->assertFloatEquals(M_PI, Angle::convert(180, 'deg', 'rad'));
+        $this->assertFloatEquals(M_PI, $converter->convert(180, 'deg', 'rad'));
 
         // π radians = 180 degrees
-        $this->assertFloatEquals(180.0, Angle::convert(M_PI, 'rad', 'deg'));
+        $this->assertFloatEquals(180.0, $converter->convert(M_PI, 'rad', 'deg'));
 
         // 1 degree = 60 arcminutes
-        $this->assertFloatEquals(60.0, Angle::convert(1, 'deg', 'arcmin'));
+        $this->assertFloatEquals(60.0, $converter->convert(1, 'deg', 'arcmin'));
 
         // 90 degrees = 100 gradians
-        $this->assertFloatEquals(100.0, Angle::convert(90, 'deg', 'grad'));
+        $this->assertFloatEquals(100.0, $converter->convert(90, 'deg', 'grad'));
 
         // 0.5 turns = 180 degrees
-        $this->assertFloatEquals(180.0, Angle::convert(0.5, 'turn', 'deg'));
+        $this->assertFloatEquals(180.0, $converter->convert(0.5, 'turn', 'deg'));
     }
 
     /**
@@ -965,7 +972,7 @@ final class AngleTest extends TestCase
     public function testStaticConvertInvalidUnit(): void
     {
         $this->expectException(ValueError::class);
-        Angle::convert(90, 'banana', 'deg');
+        Angle::getUnitConverter()->convert(90, 'banana', 'deg');
     }
 
     /**
@@ -975,12 +982,12 @@ final class AngleTest extends TestCase
     {
         $angle = new Angle(90, 'deg');
 
-        $this->assertFloatEquals(M_PI / 2, $angle->to('rad'));
-        $this->assertFloatEquals(90.0, $angle->to('deg'));
-        $this->assertFloatEquals(5400.0, $angle->to('arcmin'));
-        $this->assertFloatEquals(324000.0, $angle->to('arcsec'));
-        $this->assertFloatEquals(100.0, $angle->to('grad'));
-        $this->assertFloatEquals(0.25, $angle->to('turn'));
+        $this->assertFloatEquals(M_PI / 2, $angle->to('rad')->value);
+        $this->assertFloatEquals(90.0, $angle->to('deg')->value);
+        $this->assertFloatEquals(5400.0, $angle->to('arcmin')->value);
+        $this->assertFloatEquals(324000.0, $angle->to('arcsec')->value);
+        $this->assertFloatEquals(100.0, $angle->to('grad')->value);
+        $this->assertFloatEquals(0.25, $angle->to('turn')->value);
     }
 
     /**
@@ -989,7 +996,7 @@ final class AngleTest extends TestCase
     public function testToMethodDefault(): void
     {
         $angle = new Angle(180, 'deg');
-        $this->assertFloatEquals(M_PI, $angle->to('rad'));
+        $this->assertFloatEquals(M_PI, $angle->to('rad')->value);
     }
 
     /**

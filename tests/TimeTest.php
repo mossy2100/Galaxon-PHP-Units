@@ -8,11 +8,351 @@ use DateInterval;
 use Galaxon\Units\MeasurementTypes\Time;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 use ValueError;
 
 #[CoversClass(Time::class)]
 final class TimeTest extends TestCase
 {
+    // region fromPartsArray() tests
+
+    /**
+     * Test fromPartsArray() with all parts specified.
+     */
+    public function testFromPartsArrayComplete(): void
+    {
+        $parts = [
+            'y' => 1,
+            'mo' => 2,
+            'w' => 3,
+            'd' => 4,
+            'h' => 5,
+            'min' => 6,
+            's' => 7.5,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        $this->assertEquals('s', $time->unit);
+        $this->assertGreaterThan(0, $time->value);
+    }
+
+    /**
+     * Test fromPartsArray() with partial parts.
+     */
+    public function testFromPartsArrayPartial(): void
+    {
+        $parts = [
+            'h' => 2,
+            'min' => 30,
+            's' => 45,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        // 2 hours + 30 minutes + 45 seconds = 9045 seconds
+        $this->assertEqualsWithDelta(9045, $time->value, 0.001);
+        $this->assertEquals('s', $time->unit);
+    }
+
+    /**
+     * Test fromPartsArray() with only seconds.
+     */
+    public function testFromPartsArrayOnlySeconds(): void
+    {
+        $parts = ['s' => 42.5];
+        $time = Time::fromPartsArray($parts);
+
+        $this->assertEquals(42.5, $time->value);
+        $this->assertEquals('s', $time->unit);
+    }
+
+    /**
+     * Test fromPartsArray() with negative sign.
+     */
+    public function testFromPartsArrayNegative(): void
+    {
+        $parts = [
+            'h' => 1,
+            'min' => 30,
+            's' => 15,
+            'sign' => -1,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        // -(1h 30min 15s) = -5415 seconds
+        $this->assertEqualsWithDelta(-5415, $time->value, 0.001);
+    }
+
+    /**
+     * Test fromPartsArray() with positive sign explicitly.
+     */
+    public function testFromPartsArrayPositiveSign(): void
+    {
+        $parts = [
+            'min' => 5,
+            'sign' => 1,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        $this->assertEquals(300, $time->value);
+    }
+
+    /**
+     * Test fromPartsArray() with zero values.
+     */
+    public function testFromPartsArrayZeroValues(): void
+    {
+        $parts = [
+            'h' => 0,
+            'min' => 0,
+            's' => 0,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        $this->assertEquals(0, $time->value);
+    }
+
+    /**
+     * Test fromPartsArray() throws on invalid part name.
+     */
+    public function testFromPartsArrayInvalidPartName(): void
+    {
+        $parts = ['invalid' => 10];
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('Invalid part name');
+        Time::fromPartsArray($parts);
+    }
+
+    /**
+     * Test fromPartsArray() throws on non-numeric value.
+     */
+    public function testFromPartsArrayNonNumeric(): void
+    {
+        $parts = ['s' => 'not a number'];
+
+        $this->expectException(TypeError::class);
+        Time::fromPartsArray($parts);
+    }
+
+    /**
+     * Test fromPartsArray() throws on invalid sign value.
+     */
+    public function testFromPartsArrayInvalidSign(): void
+    {
+        $parts = [
+            's' => 10,
+            'sign' => 0,  // Must be -1 or 1
+        ];
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('Sign must be -1 or 1');
+        Time::fromPartsArray($parts);
+    }
+
+    /**
+     * Test fromPartsArray() throws on negative time value.
+     */
+    public function testFromPartsArrayNegativeValue(): void
+    {
+        $parts = ['s' => -10];
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('finite and non-negative');
+        Time::fromPartsArray($parts);
+    }
+
+    /**
+     * Test fromPartsArray() throws on non-finite value.
+     */
+    public function testFromPartsArrayNonFiniteValue(): void
+    {
+        $parts = ['s' => INF];
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('finite and non-negative');
+        Time::fromPartsArray($parts);
+    }
+
+    /**
+     * Test fromPartsArray() with float values for all parts.
+     */
+    public function testFromPartsArrayFloatValues(): void
+    {
+        $parts = [
+            'h' => 1.5,
+            'min' => 2.5,
+            's' => 3.5,
+        ];
+
+        $time = Time::fromPartsArray($parts);
+
+        // 1.5 hours + 2.5 minutes + 3.5 seconds = 5400 + 150 + 3.5 = 5553.5 seconds
+        $this->assertEqualsWithDelta(5553.5, $time->value, 0.001);
+    }
+
+    // endregion
+
+    // region fromParts() tests
+
+    /**
+     * Test fromParts() with all parameters.
+     */
+    public function testFromPartsComplete(): void
+    {
+        $time = Time::fromParts(1, 2, 3, 4, 5, 6.5);
+
+        $this->assertEquals('s', $time->unit);
+        $this->assertGreaterThan(0, $time->value);
+    }
+
+    /**
+     * Test fromParts() with only years.
+     */
+    public function testFromPartsOnlyYears(): void
+    {
+        $time = Time::fromParts(2);
+
+        // 2 years = 2 * 365.2425 * 86400 seconds
+        $this->assertEqualsWithDelta(63113904, $time->value, 1);
+        $this->assertEquals('s', $time->unit);
+    }
+
+    /**
+     * Test fromParts() with years and months.
+     */
+    public function testFromPartsYearsAndMonths(): void
+    {
+        $time = Time::fromParts(1, 6);
+
+        // 1 year 6 months = 1.5 years worth of seconds
+        $this->assertGreaterThan(31556952, $time->value);
+        $this->assertLessThan(63113904, $time->value);
+    }
+
+    /**
+     * Test fromParts() with days, hours, minutes, seconds.
+     */
+    public function testFromPartsDaysHoursMinutesSeconds(): void
+    {
+        $time = Time::fromParts(0, 0, 1, 2, 3, 4);
+
+        // 1 day + 2 hours + 3 minutes + 4 seconds
+        // = 86400 + 7200 + 180 + 4 = 93784 seconds
+        $this->assertEqualsWithDelta(93784, $time->value, 0.001);
+    }
+
+    /**
+     * Test fromParts() with default parameters (all zeros).
+     */
+    public function testFromPartsDefaults(): void
+    {
+        $time = Time::fromParts(0);
+
+        $this->assertEquals(0, $time->value);
+        $this->assertEquals('s', $time->unit);
+    }
+
+    /**
+     * Test fromParts() with negative sign.
+     */
+    public function testFromPartsNegativeSign(): void
+    {
+        $time = Time::fromParts(0, 0, 1, 0, 0, 0, -1);
+
+        // -1 day = -86400 seconds
+        $this->assertEqualsWithDelta(-86400, $time->value, 0.001);
+    }
+
+    /**
+     * Test fromParts() with positive sign explicitly.
+     */
+    public function testFromPartsPositiveSign(): void
+    {
+        $time = Time::fromParts(0, 0, 0, 1, 0, 0, 1);
+
+        // 1 hour = 3600 seconds
+        $this->assertEquals(3600, $time->value);
+    }
+
+    /**
+     * Test fromParts() with fractional values.
+     */
+    public function testFromPartsFractional(): void
+    {
+        $time = Time::fromParts(0, 0, 0, 1.5, 0, 0);
+
+        // 1.5 hours = 5400 seconds
+        $this->assertEquals(5400, $time->value);
+    }
+
+    /**
+     * Test fromParts() skips weeks parameter (by design).
+     */
+    public function testFromPartsNoWeeksParameter(): void
+    {
+        // This test documents that fromParts intentionally doesn't have a weeks parameter.
+        // To create a time with weeks, convert to days or use fromPartsArray().
+        $time = Time::fromParts(0, 0, 7);  // 7 days (not weeks)
+
+        // 7 days = 604800 seconds
+        $this->assertEqualsWithDelta(604800, $time->value, 0.001);
+    }
+
+    /**
+     * Test fromParts() matches fromPartsArray().
+     */
+    public function testFromPartsMatchesFromPartsArray(): void
+    {
+        $time1 = Time::fromParts(1, 2, 3, 4, 5, 6.5, -1);
+
+        $time2 = Time::fromPartsArray([
+            'y' => 1,
+            'mo' => 2,
+            'd' => 3,
+            'h' => 4,
+            'min' => 5,
+            's' => 6.5,
+            'sign' => -1,
+        ]);
+
+        $this->assertEqualsWithDelta($time1->value, $time2->value, 0.001);
+    }
+
+    // endregion
+
+    // region validatePrecision() tests
+
+    /**
+     * Test toParts() with negative precision throws ValueError.
+     */
+    public function testToPartsNegativePrecision(): void
+    {
+        $time = new Time(100, 's');
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('Must be null or a non-negative integer');
+        $time->toParts('s', -1);
+    }
+
+    /**
+     * Test formatParts() with negative precision throws ValueError.
+     */
+    public function testFormatPartsNegativePrecision(): void
+    {
+        $time = new Time(100, 's');
+
+        $this->expectException(ValueError::class);
+        $this->expectExceptionMessage('Must be null or a non-negative integer');
+        $time->formatParts('s', -1);
+    }
+
+    // endregion
+
     /**
      * Test toParts() with seconds as smallest unit.
      */
@@ -140,7 +480,8 @@ final class TimeTest extends TestCase
         $time = new Time(0, 's');
         $parts = $time->toParts('s');
 
-        $this->assertEquals(0, $parts['sign']);
+        // Sign is 1 for zero value (Numbers::sign(0, false) returns 1)
+        $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
         $this->assertEquals(0, $parts['mo']);
         $this->assertEquals(0, $parts['d']);

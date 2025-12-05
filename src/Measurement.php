@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Galaxon\Units;
 
 use DivisionByZeroError;
+use Galaxon\Core\Arrays;
 use Galaxon\Core\Comparable;
 use Galaxon\Core\Equatable;
 use Galaxon\Core\Floats;
+use Galaxon\Core\Numbers;
 use Galaxon\Core\Types;
 use LogicException;
 use Override;
@@ -333,6 +335,16 @@ abstract class Measurement implements Stringable, Equatable
 
         // Subtract the values.
         return new static($this->value - $other_value, $this->unit);
+    }
+
+    /**
+     * Negate a measurement.
+     *
+     * @return static A new Measurement containing the negative of this measurement's unit.
+     */
+    public function neg(): static
+    {
+        return new static(-$this->value, $this->unit);
     }
 
     /**
@@ -664,6 +676,173 @@ abstract class Measurement implements Stringable, Equatable
 
         // Format the unit as-is.
         return $unit;
+    }
+
+    // endregion
+
+    // region Methods for working with parts
+
+    /**
+     * Check smallest unit argument is valid.
+     *
+     * @param string $smallestUnit
+     * @return void
+     * @throws ValueError
+     */
+    protected static function validateSmallestUnit(string $smallestUnit): void
+    {
+        if (!in_array($smallestUnit, static::PARTS_UNITS, true)) {
+            throw new ValueError('Invalid smallest unit specified. Must be one of: ' .
+                                 implode(', ', Arrays::quoteValues(static::PARTS_UNITS)));
+        }
+    }
+
+    /**
+     * Check precision argument is valid.
+     *
+     * @param ?int $precision The precision to validate.
+     * @return void
+     * @throws ValueError If precision is negative.
+     */
+    protected static function validatePrecision(?int $precision): void
+    {
+        if ($precision !== null && $precision < 0) {
+            throw new ValueError('Invalid precision specified. Must be null or a non-negative integer.');
+        }
+    }
+
+    /**
+     * Create a new Measurement object (of the derived type) as a sum of measurements of the same type in different
+     * units.
+     *
+     * All parts must be non-negative.
+     * If the final value should be negative, include a 'sign' part with a value of -1.
+     *
+     * @param array<string, int|float> $parts The parts and optional sign.
+     * @return self A new Measurement equal to the sum of the parts, with the unit equal to the smallest unit.
+     * @throws TypeError If any of the values are not numbers.
+     * @throws ValueError If any of the values are non-finite or negative.
+     * @throws LogicException If PARTS_UNITS is not defined in the derived class.
+     */
+    public static function fromPartsArray(array $parts): static
+    {
+        // Check that PARTS_UNITS is defined.
+        if (empty(static::PARTS_UNITS)) {
+            throw new LogicException('Derived measurement type must define PARTS_UNITS.');
+        }
+
+        // Validate the array.
+        $validKeys = ['sign', ...static::PARTS_UNITS];
+        foreach ($parts as $key => $value) {
+            if (!in_array($key, $validKeys, true)) {
+                throw new ValueError('Invalid part name: ' . $key);
+            }
+            if (!Types::isNumber($value)) {
+                throw new TypeError('All values must be numbers.');
+            }
+            if ($key === 'sign') {
+                if ($value !== -1 && $value !== 1) {
+                    throw new ValueError('Sign must be -1 or 1.');
+                }
+            }
+            elseif (!is_finite($value) || $value < 0.0) {
+                throw new ValueError('All part values must be finite and non-negative.');
+            }
+        }
+
+        // Find the smallest unit.
+        $smallestUnitIndex = array_key_last(static::PARTS_UNITS);
+        $smallestUnit = static::PARTS_UNITS[$smallestUnitIndex];
+
+        // Initialize the Measurement to 0, with the unit set to the smallest unit.
+        $t = new (self::getClassName())(0, $smallestUnit);
+
+        // Check each of the possible units.
+        foreach (static::PARTS_UNITS as $unit) {
+            // Ignore omitted units.
+            if (!isset($parts[$unit])) {
+                continue;
+            }
+
+            // Add the part. It will be converted to seconds.
+            $t = $t->add($parts[$unit], $unit);
+        }
+
+        // Make negative if necessary.
+        if (isset($parts['sign']) && $parts['sign'] === -1) {
+            $t = $t->neg();
+        }
+
+        return $t;
+    }
+
+    /**
+     * Convert Measurement to component parts.
+     *
+     * Returns an array with components from the largest to the smallest unit.
+     * Only the last component may have a fractional part; others are integers.
+     *
+     * @param string $smallestUnit The smallest unit to include (default 'arcsec').
+     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
+     * @return array<string|int, int|float> Array of parts, plus the sign.
+     * @throws ValueError If any arguments are invalid.
+     * @throws LogicException If PARTS_UNITS is not defined in the derived class.
+     */
+    public function toParts(string $smallestUnit = 'arcsec', ?int $precision = null): array
+    {
+        // Validate arguments.
+        static::validateSmallestUnit($smallestUnit);
+        static::validatePrecision($precision);
+
+        // Check that PARTS_UNITS is defined.
+        if (empty(static::PARTS_UNITS)) {
+            throw new LogicException('Derived measurement type must define PARTS_UNITS.');
+        }
+
+        // Prep.
+        $converter = static::getUnitConverter();
+        $sign = Numbers::sign($this->value, false);
+        $parts = ['sign' => $sign];
+        $smallestUnitIndex = (int)array_search($smallestUnit, static::PARTS_UNITS, true);
+
+        // Initialize the remainder to the initial value converted to the smallest unit.
+        $rem = abs($this->to($smallestUnit)->value);
+
+        // Get the integer parts.
+        for ($i = 0; $i < $smallestUnitIndex; $i++) {
+            // Get the number of current units in the smallest unit.
+            $curUnit = static::PARTS_UNITS[$i];
+            $factor = $converter->convert(1, $curUnit, $smallestUnit);
+            $wholeNumCurUnit = floor($rem / $factor);
+            $parts[$curUnit] = (int)$wholeNumCurUnit;
+            $rem = $rem - $wholeNumCurUnit * $factor;
+        }
+
+        // Round the smallest unit.
+        if ($precision === null) {
+            // No rounding.
+            $parts[$smallestUnit] = $rem;
+        } elseif ($precision === 0) {
+            // Return an integer.
+            $parts[$smallestUnit] = (int)round($rem, $precision);
+        } else {
+            // Round off.
+            $parts[$smallestUnit] = round($rem, $precision);
+        }
+
+        // Carry in reverse order.
+        if ($precision !== null) {
+            for ($i = $smallestUnitIndex; $i >= 1; $i--) {
+                $curUnit = static::PARTS_UNITS[$i];
+                $prevUnit = static::PARTS_UNITS[$i - 1];
+                if ($parts[$curUnit] >= $converter->convert(1, $prevUnit, $curUnit)) {
+                    $parts[$curUnit] = 0;
+                    $parts[$prevUnit]++;
+                }
+            }
+        }
+
+        return $parts;
     }
 
     // endregion

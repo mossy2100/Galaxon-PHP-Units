@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Galaxon\Units\MeasurementTypes;
 
+use Galaxon\Core\Arrays;
 use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
+use Galaxon\Core\Types;
 use Galaxon\Units\Measurement;
 use Override;
 use TypeError;
@@ -18,6 +20,12 @@ class Angle extends Measurement
     // Epsilons for comparisons.
     public const float RAD_EPSILON = 1e-9;
     public const float TRIG_EPSILON = 1e-12;
+
+    /**
+     * Ordered list of angle unit abbreviations from largest (degrees) to smallest (arcseconds).
+     * Used for parts decomposition and validation.
+     */
+    protected const array PARTS_UNITS = ['deg', 'arcmin', 'arcsec'];
 
     // endregion
 
@@ -61,13 +69,13 @@ class Angle extends Measurement
                 // Get the sign.
                 $sign = isset($matches['sign']) && $matches['sign'] === '-' ? -1 : 1;
 
-                // Extract the parts.
-                $d = isset($matches['deg']) ? $sign * (float)$matches['deg'] : 0.0;
-                $m = isset($matches['min']) ? $sign * (float)$matches['min'] : 0.0;
-                $s = isset($matches['sec']) ? $sign * (float)$matches['sec'] : 0.0;
+                // Extract the parts (non-negative).
+                $d = isset($matches['deg']) ? (float)$matches['deg'] : 0.0;
+                $m = isset($matches['min']) ? (float)$matches['min'] : 0.0;
+                $s = isset($matches['sec']) ? (float)$matches['sec'] : 0.0;
 
                 // Convert to angle.
-                return self::fromDMS($d, $m, $s);
+                return self::fromParts($d, $m, $s, $sign);
             }
 
             // Invalid format.
@@ -121,171 +129,79 @@ class Angle extends Measurement
     // region Methods for working with angles in degrees, arcminutes, and arcseconds
 
     /**
-     * Create an angle from degrees, arcminutes, and arcseconds.
+     * Create an Angle as a sum of angles in different units.
      *
-     * NB: In theory all parts SHOULD be either non-negative (i.e. 0 or positive) or non-positive (i.e. 0 or negative).
-     * However, this is not enforced. Neither do any of the values have to be within a certain range (e.g. 0-60 for
-     * arcminutes or arcseconds).
-     * You'll usually want to use the same sign for all parts.
+     * All parts must be non-negative.
+     * If the Angle is negative, set the $sign parameter to -1.
      *
      * @param float $degrees The degrees part.
      * @param float $arcmin The arcminutes part (optional).
      * @param float $arcsec The arcseconds part (optional).
-     * @return self A new angle with a magnitude equal to the provided angle.
-     * @throws ValueError If any of the arguments are non-finite numbers.
-     * @example
-     * If you want to convert -12° 34′ 56″ to degrees, call fromDMS(-12, -34, -56)
-     * If you want to convert -12° 56″ to degrees, call fromDMS(-12, 0, -56).
+     * @param int $sign -1 if the Angle is negative, 1 (or omitted) otherwise.
+     * @return self A new Angle in degrees with a magnitude equal to the sum of the parts.
+     * @throws TypeError If any of the values are not numbers.
+     * @throws ValueError If any of the values are non-finite or negative.
      */
-    public static function fromDMS(float $degrees, float $arcmin = 0.0, float $arcsec = 0.0): self
+    public static function fromParts(float $degrees, float $arcmin = 0.0, float $arcsec = 0.0, int $sign = 1): self
     {
-        // Compute the total degrees.
-        // If any of the arguments are non-finite, the constructor will throw a ValueError.
-        return new self($degrees + $arcmin / 60 + $arcsec / 3600, 'deg');
+        return self::fromPartsArray([
+            'deg' => $degrees,
+            'arcmin' => $arcmin,
+            'arcsec' => $arcsec,
+            'sign' => $sign
+        ]);
     }
 
     /**
-     * Get the angle in degrees, arcminutes, and arcseconds.
-     * The result will be an array with 1-3 values, depending on the requested smallest unit.
-     * Only the last item may have a fractional part; others will be whole numbers.
+     * Format angle as component parts with symbols.
      *
-     * If the angle is positive, the resulting values will all be positive.
-     * If the angle is zero, the resulting values will all be zero.
-     * If the angle is negative, the resulting values will all be negative.
+     * Returns a string like "12° 34′ 56.789″".
+     * Units other than the smallest unit are shown as integers.
      *
-     * @param string $smallestUnit 'deg' for degrees only, 'arcmin' for arcminutes, 'arcsec' for arcseconds (default).
-     * @return float[] An array of 1-3 floats with the degrees, arcminutes, and arcseconds.
-     * @throws ValueError If $smallestUnit is not 'deg', 'arcmin', or 'arcsec'.
+     * @param string $smallestUnit The smallest unit to include (default 'arcsec').
+     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
+     * @return string Formatted angle string.
+     * @throws ValueError If either argument is invalid.
      */
-    public function toDMS(string $smallestUnit = 'arcsec'): array
+    public function formatParts(string $smallestUnit = 'arcsec', ?int $precision = null): string
     {
-        // Validate the smallest unit argument.
-        if (!in_array($smallestUnit, ['deg', 'arcmin', 'arcsec'], true)) {
-            throw new ValueError("The smallest unit must be 'deg', 'arcmin', or 'arcsec'.");
+        // Validate arguments.
+        self::validateSmallestUnit($smallestUnit);
+        self::validatePrecision($precision);
+
+        // Get the parts.
+        $parts = $this->toParts($smallestUnit, $precision);
+
+        // Prep.
+        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
+        $result = [];
+        $symbols = ['deg' => '°', 'arcmin' => '′', 'arcsec' => '″'];
+
+        // Generate string as parts.
+        for ($i = 0; $i <= $smallestUnitIndex; $i++) {
+            $unit = self::PARTS_UNITS[$i];
+            $value = $parts[$unit] ?? 0;
+
+            // Format the value.
+            if ($i === $smallestUnitIndex && $precision !== null) {
+                // Format smallest unit with precision.
+                $formattedValue = number_format($value, $precision);
+            } else {
+                // Format as integer or float.
+                $formattedValue = is_int($value) ? (string)$value : rtrim(rtrim(sprintf('%.10f', $value), '0'), '.');
+            }
+
+            $result[] = $formattedValue . $symbols[$unit];
         }
 
-        $angleInDegrees = $this->to('deg');
-        $sign = Numbers::sign($angleInDegrees->value, false);
-        $totalDeg = abs($angleInDegrees->value);
-
-        switch ($smallestUnit) {
-            case 'deg':
-                $d = $totalDeg;
-
-                // Apply sign and normalize -0.0 to 0.0.
-                $d = Floats::normalizeZero($d * $sign);
-
-                return [$d];
-
-            case 'arcmin':
-                // Convert the total degrees to degrees and minutes (non-negative).
-                $d = floor($totalDeg);
-                $m = ($totalDeg - $d) * 60;
-
-                // Apply sign and normalize -0.0 to 0.0.
-                $d = Floats::normalizeZero($d * $sign);
-                $m = Floats::normalizeZero($m * $sign);
-
-                return [$d, $m];
-
-            case 'arcsec':
-                // Convert the total degrees to degrees, minutes, and seconds (non-negative).
-                $d = floor($totalDeg);
-                $fMin = ($totalDeg - $d) * 60;
-                $m = floor($fMin);
-                $s = ($fMin - $m) * 60;
-
-                // Apply sign and normalize -0.0 to 0.0.
-                $d = Floats::normalizeZero($d * $sign);
-                $m = Floats::normalizeZero($m * $sign);
-                $s = Floats::normalizeZero($s * $sign);
-
-                return [$d, $m, $s];
-
-            default:
-                throw new ValueError(
-                    "The smallest unit must be 'deg', 'arcmin', or 'arcsec' (default)."
-                );
-        }
-    }
-
-    /**
-     * Format a given angle with degrees symbol, plus optional arcminutes and arcseconds.
-     *
-     * @param string $smallestUnit 'deg' for degrees, 'arcmin' for arcminutes, 'arcsec' for arcseconds (default).
-     * @param int|null $precision Optional number of decimal places for the smallest unit.
-     * @return string The degrees, arcminutes, and arcseconds nicely formatted as a string.
-     * @throws ValueError If the smallest unit argument is not 'deg', 'arcmin', or 'arcsec'.
-     * @example
-     * $alpha = new Angle(12.3456789, 'deg');
-     * echo $alpha->formatDMS('deg');    // 12.3456789°
-     * echo $alpha->formatDMS('arcmin'); // 12° 20.740734′
-     * echo $alpha->formatDMS('arcsec'); // 12° 20′ 44.44404″
-     */
-    public function formatDMS(string $smallestUnit = 'arcsec', ?int $precision = null): string
-    {
-        // Validate the smallest unit argument.
-        if (!in_array($smallestUnit, ['deg', 'arcmin', 'arcsec'], true)) {
-            throw new ValueError("The smallest unit must be 'deg', 'arcmin', or 'arcsec'.");
+        // If the value is zero, just return '0' with the smallest unit symbol (e.g., "0°", "0′", "0″").
+        if (empty($result)) {
+            return '0' . $symbols[$smallestUnit];
         }
 
-        // Get the sign string.
-        $sign = $this->value < 0 ? '-' : '';
-
-        // Convert to degrees, with optional arcminutes and/or arcseconds.
-        $parts = $this->abs()->toDMS($smallestUnit);
-
-        switch ($smallestUnit) {
-            case 'deg':
-                [$d] = $parts;
-                $strDeg = self::formatValue($d, 'f', $precision);
-                return "$sign{$strDeg}°";
-
-            case 'arcmin':
-                [$d, $m] = $parts;
-
-                // Round the smallest unit if requested.
-                if ($precision !== null) {
-                    $m = round($m, $precision);
-
-                    // Handle floating-point drift and carry.
-                    if ($m >= 60) {
-                        $m = 0.0;
-                        $d += 1.0;
-                    }
-                }
-
-                $strMin = self::formatValue($m, 'f', $precision);
-                return "$sign{$d}° {$strMin}′";
-
-            case 'arcsec':
-                [$d, $m, $s] = $parts;
-
-                // Round the smallest unit if requested.
-                if ($precision !== null) {
-                    $s = round($s, $precision);
-
-                    // Handle floating-point drift and carry.
-                    if ($s >= 60) {
-                        $s = 0.0;
-                        $m += 1.0;
-                    }
-                    if ($m >= 60) {
-                        $m = 0.0;
-                        $d += 1.0;
-                    }
-                }
-
-                $strSec = self::formatValue($s, 'f', $precision);
-                return "$sign{$d}° {$m}′ {$strSec}″";
-
-            // @codeCoverageIgnoreStart
-            default:
-                throw new ValueError(
-                    "The smallest unit must be 'deg', 'arcmin', or 'arcsec' (default)."
-                );
-            // @codeCoverageIgnoreEnd
-        }
+        // Return string of units. If sign is negative, prepend minus sign.
+        $str = implode(' ', $result);
+        return $parts['sign'] === -1 ? "-$str" : $str;
     }
 
     // endregion

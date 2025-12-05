@@ -6,14 +6,25 @@ namespace Galaxon\Units\MeasurementTypes;
 
 use DateInterval;
 use Galaxon\Core\Arrays;
+use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
+use Galaxon\Core\Types;
 use Galaxon\Units\Measurement;
 use Override;
+use TypeError;
 use ValueError;
 
 class Time extends Measurement
 {
-    private const array PARTS_UNITS = ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
+    // region Constants
+
+    /**
+     * Ordered list of time unit abbreviations from largest (years) to smallest (seconds).
+     * Used for parts decomposition and validation.
+     */
+    protected const array PARTS_UNITS = ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
+
+    // endregion
 
     // region Factory methods
 
@@ -73,101 +84,144 @@ class Time extends Measurement
 
     // endregion
 
-    // region Instance methods
+    // region Measurement methods
 
     /**
-     * Check smallest unit argument is valid.
+     * Get the units for Time measurements.
      *
-     * @param string $smallestUnit
-     * @return void
-     * @throws ValueError
+     * @return array<string, int> Array of units with allowed prefixes flags.
      */
-    private static function validateSmallestUnit(string $smallestUnit): void
+    #[Override]
+    public static function getBaseUnits(): array
     {
-        if (!in_array($smallestUnit, self::PARTS_UNITS, true)) {
-            throw new ValueError('Invalid smallest unit specified. Must be one of: ' .
-                                 implode(', ', Arrays::quoteValues(self::PARTS_UNITS)));
-        }
-    }
-
-    private static function validatePrecision(?int $precision): void
-    {
-        if ($precision !== null && $precision < 0) {
-            throw new ValueError('Invalid precision specified. Must be null or a non-negative integer.');
-        }
+        return [
+            's'   => self::PREFIXES_METRIC,  // second
+            'min' => 0,  // minute
+            'h'   => 0,  // hour
+            'd'   => 0,  // day
+            'w'   => 0,  // week
+            'mo'  => 0,  // month
+            'y'   => 0,  // year
+            'c'   => 0,  // century
+        ];
     }
 
     /**
-     * Convert time to component parts.
+     * Get the conversions for Time measurements.
      *
-     * Returns an array with components from years down to the smallest unit.
-     * Only the last component may have a fractional part; others are integers.
+     * These conversion factors are basic. Leap seconds are not considered, and the year-to-day conversion is based on
+     * the average length of a year in the Gregorian calendar. If you want, you can add or update conversions using the
+     * `Time::getUnitConverter()->addConversion()` method.
      *
-     * Uses naive conversion, which assumes years and months have a constant, average length:
-     * - 1 year = 365.2425 days
-     * - 1 month = 30.436875 days
-     * - 1 week = 7 days
+     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     */
+    #[Override]
+    public static function getConversions(): array
+    {
+        return [
+            ['min', 's', 60],
+            ['h', 'min', 60],
+            ['d', 'h', 24],
+            ['w', 'd', 7],
+            ['y', 'mo', 12],
+            ['y', 'd', 365.2425],
+            ['c', 'y', 100]
+        ];
+    }
+
+    // endregion
+
+    // region Methods for working with time as parts
+
+    /**
+     * Create a Time as a sum of times in different units.
+     *
+     * All parts must be non-negative.
+     * If the Time is negative, set the $negative flag to true.
+     *
+     * NB: This method doesn't include a parameter for weeks, as this may have been confusing and led to bugs.
+     * Many date and time constructors don't include a parameter for weeks, and only have the 6 usual ones.
+     * So, this design is following the "Principle of Least Surprise".
+     * If you need to create a Time from weeks, you can convert weeks to days, or use fromPartsArray() instead.
+     *
+     * @param int|float $years The number of years.
+     * @param int|float $months The number of months.
+     * @param int|float $days The number of days.
+     * @param int|float $hours The number of hours.
+     * @param int|float $minutes The number of minutes.
+     * @param int|float $seconds The number of seconds.
+     * @param int $sign -1 if the Time is negative, 1 (or omitted) otherwise.
+     * @return self A new Time in seconds with a magnitude equal to the sum of the parts.
+     * @throws TypeError If any of the values are not numbers.
+     * @throws ValueError If any of the values are non-finite or negative.
+     */
+    public static function fromParts(
+        int|float $years, int|float $months = 0, int|float $days = 0, int|float $hours = 0, int|float $minutes = 0,
+        int|float $seconds = 0, int $sign = 1
+    ): self
+    {
+        return self::fromPartsArray([
+            'y'   => $years,
+            'mo'  => $months,
+            'd'   => $days,
+            'h'   => $hours,
+            'min' => $minutes,
+            's'   => $seconds,
+            'sign' => $sign
+        ]);
+    }
+
+    /**
+     * Format time as component parts with units.
+     *
+     * Returns a string like "1y 3mo 2w 4d 12h 34min 56.789s".
+     * Units other than the smallest unit are shown as integers.
      *
      * @param string $smallestUnit The smallest unit to include (default 's').
      * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
-     * @return array<int|float> Array of time components.
+     * @return string Formatted time string.
      * @throws ValueError If either argument is invalid.
      */
-    public function toParts(string $smallestUnit = 's', ?int $precision = null): array
+    public function formatParts(string $smallestUnit = 's', ?int $precision = null): string
     {
         // Validate arguments.
         self::validateSmallestUnit($smallestUnit);
         self::validatePrecision($precision);
 
-        // Prep.
-        $converter = static::getUnitConverter();
-        $sign = Numbers::sign($this->value);
-        $parts = ['sign' => $sign];
-        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
-
-        // Get initial remainder in the smallest unit.
-        $rem = abs($this->to($smallestUnit)->value);
-
         // Get the parts.
+        $parts = $this->toParts($smallestUnit, $precision);
+
+        // Prep.
+        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
+        $result = [];
+
+        // Generate string as parts.
         for ($i = 0; $i <= $smallestUnitIndex; $i++) {
-            $curUnit = self::PARTS_UNITS[$i];
+            $unit = self::PARTS_UNITS[$i];
+            $value = $parts[$unit] ?? 0;
 
-            // Have we reached the smallest unit?
-            if ($curUnit === $smallestUnit) {
-                if ($precision === null) {
-                    // No rounding.
-                    $parts[$curUnit] = $rem;
-                } elseif ($precision === 0) {
-                    // Return an integer.
-                    $parts[$curUnit] = (int)round($rem, $precision);
-                } else {
-                    // Round off.
-                    $parts[$curUnit] = round($rem, $precision);
-                }
-                break;
+            // Skip zero components.
+            if (Numbers::equal($value, 0)) {
+                continue;
             }
 
-            // Get the number of the current units.
-            $factor = $converter->convert(1, $curUnit, $smallestUnit);
-            $wholeNumCurUnit = floor($rem / $factor);
-            $parts[$curUnit] = (int)$wholeNumCurUnit;
-            $rem = $rem - $wholeNumCurUnit * $factor;
+            // Format the value.
+            $result[] = $value . $unit;
         }
 
-        // Carry in reverse order.
-        if ($precision !== null) {
-            for ($i = $smallestUnitIndex; $i >= 1; $i--) {
-                $curUnit = self::PARTS_UNITS[$i];
-                $prevUnit = self::PARTS_UNITS[$i - 1];
-                if ($parts[$curUnit] >= $converter->convert(1, $prevUnit, $curUnit)) {
-                    $parts[$curUnit] = 0;
-                    $parts[$prevUnit]++;
-                }
-            }
+        // If the value is zero, just return '0' with the smallest unit (e.g., "0s", "0min", "0h").
+        if (empty($result)) {
+            return '0' . $smallestUnit;
         }
 
-        return $parts;
+        // Return string of units. If sign is negative, wrap units in brackets.
+        $str = implode(' ', $result);
+        return $parts['sign'] === -1 ? "-($str)" : $str;
     }
+
+    // endregion
+
+    // region Methods for interoperation with DateInterval
 
     /**
      * Convert time to a DateInterval specification string.
@@ -185,7 +239,7 @@ class Time extends Measurement
 
         // Prep.
         $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
-        $parts = $this->toParts($smallestUnit, 0);
+        $parts = $this->toParts($smallestUnit, 0);  // DateInterval requires integer parts.
         $spec = 'P';
         $labels = ['Y', 'M', 'W', 'D', 'H', 'M', 'S'];
         $timeSeparatorAdded = false;
@@ -239,101 +293,6 @@ class Time extends Measurement
         }
 
         return $dateInterval;
-    }
-
-    /**
-     * Format time as component parts with units.
-     *
-     * Returns a string like "1y 3mo 2w 4d 12h 34min 56.789s".
-     * Units other than the smallest unit are shown as integers.
-     *
-     * @param string $smallestUnit The smallest unit to include (default 's').
-     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
-     * @return string Formatted time string.
-     * @throws ValueError If either argument is invalid.
-     */
-    public function formatParts(string $smallestUnit = 's', ?int $precision = null): string
-    {
-        // Validate arguments.
-        self::validateSmallestUnit($smallestUnit);
-        self::validatePrecision($precision);
-
-        // Get the parts.
-        $parts = $this->toParts($smallestUnit, $precision);
-
-        // If the value is zero, just return '0' with the smallest unit.
-        if ($parts['sign'] === 0) {
-            return '0' . $smallestUnit;
-        }
-
-        // Prep.
-        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
-        $result = [];
-
-        // Generate string as parts.
-        for ($i = 0; $i <= $smallestUnitIndex; $i++) {
-            $unit = self::PARTS_UNITS[$i];
-            $value = $parts[$unit] ?? 0;
-
-            // Skip zero components.
-            if (Numbers::equal($value, 0)) {
-                continue;
-            }
-
-            // Format the value.
-            $result[] = $value . $unit;
-        }
-
-        // Return full string. If sign is negative, wrap units in brackets.
-        $neg = $parts['sign'] === -1;
-        return ($neg ? '-(' : '') . implode(' ', $result) . ($neg ? ')' : '');
-    }
-
-    // endregion
-
-    // region Measurement methods
-
-    /**
-     * Get the units for Time measurements.
-     *
-     * @return array<string, int> Array of units with allowed prefixes flags.
-     */
-    #[Override]
-    public static function getBaseUnits(): array
-    {
-        return [
-            's'   => self::PREFIXES_METRIC,  // second
-            'min' => 0,  // minute
-            'h'   => 0,  // hour
-            'd'   => 0,  // day
-            'w'   => 0,  // week
-            'mo'  => 0,  // month
-            'y'   => 0,  // year
-            'c'   => 0,  // century
-        ];
-    }
-
-    /**
-     * Get the conversions for Time measurements.
-     *
-     * These conversion factors are basic. Leap seconds are not considered, and the year-to-day conversion is based on
-     * the average length of a year in the Gregorian calendar. If you want, you can add or update conversions using the
-     * `Time::getUnitConverter()->addConversion()` method.
-     *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
-     */
-    #[Override]
-    public static function getConversions(): array
-    {
-        return [
-            ['min', 's', 60],
-            ['h', 'min', 60],
-            ['d', 'h', 24],
-            ['w', 'd', 7],
-            ['y', 'mo', 12],
-            ['y', 'd', 365.2425],
-            ['c', 'y', 100]
-        ];
     }
 
     // endregion
