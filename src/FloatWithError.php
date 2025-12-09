@@ -64,7 +64,7 @@ class FloatWithError implements Stringable
      * Constructor.
      *
      * @param int|float $value The numeric value.
-     * @param float|null $error The absolute error. If null, estimated from float precision.
+     * @param ?float $error The absolute error. If null, estimated from float precision.
      */
     public function __construct(int|float $value, ?float $error = null)
     {
@@ -284,7 +284,7 @@ class FloatWithError implements Stringable
     public function __toString(): string
     {
         return sprintf(
-            "%.15g ± %.2e (%d sig. digits)",
+            '%.15g ± %.2e (%d sig. digits)',
             $this->value,
             $this->absoluteError,
             $this->significantDigits()

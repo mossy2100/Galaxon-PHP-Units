@@ -19,11 +19,11 @@ class Temperature extends Measurement
      * or with degree symbols like "25°C", "98.6°F".
      *
      * @param string $value The string to parse.
-     * @return static A new Temperature instance.
+     * @return Measurement A new Temperature instance.
      * @throws ValueError If the string is not a valid temperature format.
      */
     #[Override]
-    public static function parse(string $value): static
+    public static function parse(string $value): Measurement
     {
         try {
             // Try to parse using Measurement::parse().
@@ -52,7 +52,7 @@ class Temperature extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             'K' => self::PREFIXES_METRIC,  // Kelvin
@@ -64,7 +64,7 @@ class Temperature extends Measurement
     /**
      * Get the conversions for Temperature measurements.
      *
-     * @return array<array{string, string, int|float, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array

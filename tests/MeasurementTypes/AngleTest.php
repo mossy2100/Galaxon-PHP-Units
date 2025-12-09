@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Galaxon\Units\Tests;
+namespace Galaxon\Units\Tests\MeasurementTypes;
 
 use DivisionByZeroError;
 use Galaxon\Core\Floats;
 use Galaxon\Units\MeasurementTypes\Angle;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use stdClass;
+use TypeError;
 use ValueError;
 
 #[CoversClass(Angle::class)]
@@ -34,7 +36,7 @@ final class AngleTest extends TestCase
      */
     private function assertAngleEquals(Angle $a, Angle $b): void
     {
-        $this->assertTrue($a->equals($b), "Angles differ: {$a} vs {$b}");
+        $this->assertTrue($a->approxEqual($b), "Angles differ: {$a} vs {$b}");
     }
 
     /**
@@ -49,7 +51,7 @@ final class AngleTest extends TestCase
     /**
      * Test that creating an angle with NaN throws ValueError.
      */
-    public function testConstructorWithNaN(): void
+    public function testConstructorWithNan(): void
     {
         $this->expectException(ValueError::class);
         new Angle(NAN, 'deg');
@@ -373,7 +375,7 @@ final class AngleTest extends TestCase
     {
         $a = new Angle(12.5, 'deg');
         $this->assertSame('0.2181661565 rad', $a->to('rad')->format('f', 10));
-        $this->assertSame('12.50 deg', $a->to('deg')->format('f', 2));
+        $this->assertSame('12.50 deg', $a->to('deg')->format('f', 2, false));
         $this->assertSame('13.888888889 grad', $a->to('grad')->format('f', 9));
         $this->assertSame('0.0347222222 turn', $a->to('turn')->format('f', 10));
 
@@ -474,9 +476,8 @@ final class AngleTest extends TestCase
     /**
      * Test format-then-parse round-trips for all output styles.
      *
-     * Performs 200 randomized tests formatting angles in all supported styles
-     * (rad, deg, grad, turn, d, dm, dms) and parsing them back to verify
-     * that no information is lost in the conversion.
+     * Performs 200 randomized tests formatting angles in all supported units (rad, deg, grad, turn) and parsing them
+     * back to verify that no information is lost in the conversion.
      */
     public function testFormatThenParseRoundtripVariousStyles(): void
     {
@@ -488,43 +489,16 @@ final class AngleTest extends TestCase
 
             foreach ($units as $unit) {
                 // Use max float precision to ensure correct round-trip conversion.
-                $s = $a->to($unit)->format('f', 17, false, false);
+                $s = $a->to($unit)->format('g', 17, false, false);
                 $b = Angle::parse($s);
 
                 $this->assertTrue(
-                    $a->equals($b),
+                    $a->approxEqual($b),
                     "Format/parse mismatch for unit '{$unit}': {$s} → {$b} vs {$a}"
                 );
             }
         }
     }
-
-//    /**
-//     * Test wrapping behavior at boundary values.
-//     *
-//     * Verifies that wrapping correctly handles edge cases like 0, 2π, -π
-//     * in both unsigned [0, τ) and signed [-π, π) ranges.
-//     */
-//    public function testWrapBoundariesSignedAndUnsigned(): void
-//    {
-//        // Unsigned [0, τ).
-//        $this->assertFloatEquals(0.0, Angle::wrapRadians(0.0, false));
-//        $this->assertFloatEquals(0.0, Angle::wrapRadians(Floats::TAU, false));
-//        $this->assertFloatEquals(0.0, Angle::wrapRadians(-Floats::TAU, false));
-//        $this->assertFloatEquals(M_PI, Angle::wrapRadians(-M_PI, false));
-//
-//        // Signed (-π, π].
-//        $this->assertFloatEquals(M_PI, Angle::wrapRadians(-M_PI, true));
-//        $this->assertFloatEquals(M_PI, Angle::wrapRadians(M_PI, true));
-//        $this->assertFloatEquals(0.0, Angle::wrapRadians(Floats::TAU, true));
-//        $this->assertFloatEquals(0.0, Angle::wrapRadians(-Floats::TAU, true));
-//
-//        // Verify that instance methods produce correct results.
-//        $a = new Angle(Floats::TAU)->wrap();
-//        $this->assertFloatEquals(0.0, $a->to('rad'));
-//        $b = new Angle(-M_PI)->wrap(true);
-//        $this->assertFloatEquals(M_PI, $b->to('rad'));
-//    }
 
     /**
      * Test DMS conversion with extreme and out-of-range values.
@@ -551,14 +525,14 @@ final class AngleTest extends TestCase
      */
     public function testParsingWhitespaceAndAsciiUnicodeSymbols(): void
     {
-        $this->assertTrue(new Angle(12, 'deg')->equals(Angle::parse('12 deg')));
-        $this->assertTrue(new Angle(0.25, 'turn')->equals(Angle::parse(' 0.25   turn ')));
-        $this->assertTrue(new Angle(M_PI, 'rad')->equals(Angle::parse(sprintf('%.12frad', M_PI))));
+        $this->assertTrue(new Angle(12, 'deg')->equal(Angle::parse('12 deg')));
+        $this->assertTrue(new Angle(0.25, 'turn')->equal(Angle::parse(' 0.25   turn ')));
+        $this->assertTrue(new Angle(M_PI, 'rad')->approxEqual(Angle::parse(sprintf('%.12frad', M_PI))));
 
         // Unicode DMS symbols (°, ′, ″).
-        $this->assertTrue(Angle::fromParts(12, 34, 56)->equals(Angle::parse('12° 34′ 56″')));
+        $this->assertTrue(Angle::fromParts(12, 34, 56)->equal(Angle::parse('12° 34′ 56″')));
         // ASCII DMS fallback (°, ', ").
-        $this->assertTrue(Angle::fromParts(12, 34, 56, -1)->equals(Angle::parse("-12°34'56\"")));
+        $this->assertTrue(Angle::fromParts(12, 34, 56, -1)->equal(Angle::parse("-12°34'56\"")));
 
         // Verify that invalid DMS format throws ValueError.
         $this->expectException(ValueError::class);
@@ -665,52 +639,52 @@ final class AngleTest extends TestCase
     }
 
     /**
-     * Test the equals() equality method.
+     * Test the equal() equality method.
      *
-     * Verifies that equals() correctly identifies equal and unequal angles.
+     * Verifies that equal() correctly identifies equal and unequal angles.
      */
-    public function testEquals(): void
+    public function testApproxEqual(): void
     {
         $a = new Angle(10, 'deg');
         $b = new Angle(20, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($a->equals($c));
-        $this->assertFalse($a->equals($b));
+        $this->assertTrue($a->equal($c));
+        $this->assertFalse($a->equal($b));
     }
 
     /**
-     * Test equals() with epsilon tolerance.
+     * Test equal() with epsilon tolerance.
      *
      * Verifies that angles differing by less than RAD_EPSILON are considered equal.
      */
-    public function testEqualsWithEpsilonTolerance(): void
+    public function testApproxEqualWithEpsilonTolerance(): void
     {
         $a = new Angle(1.0, 'rad');
         $b = new Angle(1.0 + Angle::RAD_EPSILON / 2, 'rad');
 
         // Should be equal within epsilon
-        $this->assertTrue($a->equals($b));
+        $this->assertTrue($a->approxEqual($b));
 
         // Should not be equal outside epsilon
         $c = new Angle(1.0 + Angle::RAD_EPSILON * 2, 'rad');
-        $this->assertFalse($a->equals($c));
+        $this->assertFalse($a->approxEqual($c));
     }
 
     /**
-     * Test equals() with non-Angle types returns false.
+     * Test equal() with non-Angle types returns false.
      *
-     * Verifies that equals() gracefully handles invalid types without throwing.
+     * Verifies that equal() gracefully handles invalid types without throwing.
      */
-    public function testEqualsWithInvalidType(): void
+    public function testApproxEqualWithInvalidType(): void
     {
         $a = new Angle(10, 'deg');
 
-        $this->assertFalse($a->equals(10));
-        $this->assertFalse($a->equals(10.0));
-        $this->assertFalse($a->equals('10deg'));
-        $this->assertFalse($a->equals([]));
-        $this->assertFalse($a->equals(new \stdClass()));
+        $this->assertFalse($a->equal(10));
+        $this->assertFalse($a->equal(10.0));
+        $this->assertFalse($a->equal('10deg'));
+        $this->assertFalse($a->equal([]));
+        $this->assertFalse($a->equal(new stdClass()));
     }
 
     /**
@@ -718,12 +692,12 @@ final class AngleTest extends TestCase
      *
      * Verifies that compare() returns 0 for angles within epsilon tolerance.
      */
-    public function testCompareEqualWithinEpsilon(): void
+    public function testApproxCompareEqualWithinEpsilon(): void
     {
         $a = new Angle(1.0, 'rad');
         $b = new Angle(1.0 + Angle::RAD_EPSILON / 2, 'rad');
 
-        $this->assertSame(0, $a->compare($b));
+        $this->assertSame(0, $a->approxCompare($b, 0, Angle::RAD_EPSILON));
     }
 
     /**
@@ -735,7 +709,7 @@ final class AngleTest extends TestCase
     {
         $a = new Angle(10, 'deg');
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $a->compare(10);
     }
 
@@ -746,7 +720,7 @@ final class AngleTest extends TestCase
     {
         $a = new Angle(10, 'deg');
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $a->compare('10deg');
     }
 
@@ -757,64 +731,64 @@ final class AngleTest extends TestCase
     {
         $a = new Angle(10, 'deg');
 
-        $this->expectException(\TypeError::class);
-        $a->compare(new \stdClass());
+        $this->expectException(TypeError::class);
+        $a->compare(new stdClass());
     }
 
     /**
-     * Test isLessThan() method from Comparable trait.
+     * Test lessThan() method from Comparable trait.
      */
-    public function testIsLessThan(): void
+    public function testLessThan(): void
     {
         $a = new Angle(10, 'deg');
         $b = new Angle(20, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($a->isLessThan($b));
-        $this->assertFalse($b->isLessThan($a));
-        $this->assertFalse($a->isLessThan($c)); // Equal, not less than
+        $this->assertTrue($a->lessThan($b));
+        $this->assertFalse($b->lessThan($a));
+        $this->assertFalse($a->lessThan($c)); // Equal, not less than
     }
 
     /**
-     * Test isLessThanOrEqual() method from Comparable trait.
+     * Test lessThanOrEqual() method from Comparable trait.
      */
-    public function testIsLessThanOrEqual(): void
+    public function testLessThanOrEqual(): void
     {
         $a = new Angle(10, 'deg');
         $b = new Angle(20, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($a->isLessThanOrEqual($b));
-        $this->assertTrue($a->isLessThanOrEqual($c)); // Equal counts as <=
-        $this->assertFalse($b->isLessThanOrEqual($a));
+        $this->assertTrue($a->lessThanOrEqual($b));
+        $this->assertTrue($a->lessThanOrEqual($c)); // Equal counts as <=
+        $this->assertFalse($b->lessThanOrEqual($a));
     }
 
     /**
-     * Test isGreaterThan() method from Comparable trait.
+     * Test greaterThan() method from Comparable trait.
      */
-    public function testIsGreaterThan(): void
+    public function testGreaterThan(): void
     {
         $a = new Angle(10, 'deg');
         $b = new Angle(20, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($b->isGreaterThan($a));
-        $this->assertFalse($a->isGreaterThan($b));
-        $this->assertFalse($a->isGreaterThan($c)); // Equal, not greater than
+        $this->assertTrue($b->greaterThan($a));
+        $this->assertFalse($a->greaterThan($b));
+        $this->assertFalse($a->greaterThan($c)); // Equal, not greater than
     }
 
     /**
-     * Test isGreaterThanOrEqual() method from Comparable trait.
+     * Test greaterThanOrEqual() method from Comparable trait.
      */
-    public function testIsGreaterThanOrEqual(): void
+    public function testGreaterThanOrEqual(): void
     {
         $a = new Angle(10, 'deg');
         $b = new Angle(20, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($b->isGreaterThanOrEqual($a));
-        $this->assertTrue($a->isGreaterThanOrEqual($c)); // Equal counts as >=
-        $this->assertFalse($a->isGreaterThanOrEqual($b));
+        $this->assertTrue($b->greaterThanOrEqual($a));
+        $this->assertTrue($a->greaterThanOrEqual($c)); // Equal counts as >=
+        $this->assertFalse($a->greaterThanOrEqual($b));
     }
 
     /**
@@ -826,9 +800,9 @@ final class AngleTest extends TestCase
         $b = new Angle(-10, 'deg');
         $c = new Angle(10, 'deg');
 
-        $this->assertTrue($a->isLessThan($b));
-        $this->assertTrue($b->isLessThan($c));
-        $this->assertTrue($c->isGreaterThan($a));
+        $this->assertTrue($a->lessThan($b));
+        $this->assertTrue($b->lessThan($c));
+        $this->assertTrue($c->greaterThan($a));
     }
 
     /**
@@ -840,12 +814,12 @@ final class AngleTest extends TestCase
         $b = new Angle(370, 'deg'); // 10° + 360°
 
         // Raw comparison: 370° > 10°
-        $this->assertTrue($b->isGreaterThan($a));
+        $this->assertTrue($b->greaterThan($a));
 
         // After wrapping: both become 10° (unsigned)
         $aWrapped = new Angle(10, 'deg')->wrap();
         $bWrapped = new Angle(370, 'deg')->wrap();
-        $this->assertTrue($aWrapped->equals($bWrapped));
+        $this->assertTrue($aWrapped->equal($bWrapped));
     }
 
     /**

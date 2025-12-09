@@ -17,7 +17,7 @@ class Area extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             'm2'  => self::PREFIXES_METRIC,  // square metre
@@ -31,31 +31,9 @@ class Area extends Measurement
     }
 
     /**
-     * Square the small metric prefixes, so they have the correct multipliers.
-     *
-     * @return array<string, int|float>
-     */
-    #[Override]
-    public static function getSmallMetricPrefixes(): array
-    {
-        return self::raisePrefixesToExponent(parent::getSmallMetricPrefixes(), 2);
-    }
-
-    /**
-     * Square the large metric prefixes, so they have the correct multipliers.
-     *
-     * @return array<string, int|float>
-     */
-    #[Override]
-    public static function getLargeMetricPrefixes(): array
-    {
-        return self::raisePrefixesToExponent(parent::getLargeMetricPrefixes(), 2);
-    }
-
-    /**
      * Get the conversions for Area measurements.
      *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array

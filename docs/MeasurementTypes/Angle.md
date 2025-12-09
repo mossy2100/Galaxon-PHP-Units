@@ -310,9 +310,9 @@ $bWrapped = new Angle(370, 'deg')->wrap();
 echo $aWrapped->compare($bWrapped); // 0 (both normalized to 10°)
 ```
 
-### equals()
+### equal()
 ```php
-public function equals(mixed $other): bool
+public function equal(mixed $other): bool
 ```
 
 Check if two angles are equal within relative epsilon tolerance (`RAD_EPSILON` = 1e-9). Provided by the `Comparable` trait - delegates to `compare()`.
@@ -333,21 +333,21 @@ $a = new Angle(45, 'deg');
 $b = new Angle(45, 'deg');
 $c = new Angle(405, 'deg'); // 45° + 360°
 
-var_dump($a->equals($b)); // true
-var_dump($a->equals($c)); // false (45 ≠ 405)
+var_dump($a->equal($b)); // true
+var_dump($a->equal($c)); // false (45 ≠ 405)
 
 // After wrapping
 $cWrapped = new Angle(405, 'deg')->wrap();
-var_dump($a->equals($cWrapped)); // true (both are 45°)
+var_dump($a->equal($cWrapped)); // true (both are 45°)
 
 // Gracefully handles wrong types
-var_dump($a->equals(45)); // false (not an Angle)
-var_dump($a->equals("45deg")); // false (not an Angle)
+var_dump($a->equal(45)); // false (not an Angle)
+var_dump($a->equal("45deg")); // false (not an Angle)
 ```
 
-### isLessThan()
+### lessThan()
 ```php
-public function isLessThan(mixed $other): bool
+public function lessThan(mixed $other): bool
 ```
 
 Check if this angle is less than another. Provided by the `Comparable` trait.
@@ -357,13 +357,13 @@ Check if this angle is less than another. Provided by the `Comparable` trait.
 $a = new Angle(30, 'deg');
 $b = new Angle(60, 'deg');
 
-var_dump($a->isLessThan($b)); // true
-var_dump($b->isLessThan($a)); // false
+var_dump($a->lessThan($b)); // true
+var_dump($b->lessThan($a)); // false
 ```
 
-### isLessThanOrEqual()
+### lessThanOrEqual()
 ```php
-public function isLessThanOrEqual(mixed $other): bool
+public function lessThanOrEqual(mixed $other): bool
 ```
 
 Check if this angle is less than or equal to another. Provided by the `Comparable` trait.
@@ -374,13 +374,13 @@ $a = new Angle(45, 'deg');
 $b = new Angle(45, 'deg');
 $c = new Angle(90, 'deg');
 
-var_dump($a->isLessThanOrEqual($b)); // true (equal)
-var_dump($a->isLessThanOrEqual($c)); // true (less than)
+var_dump($a->lessThanOrEqual($b)); // true (equal)
+var_dump($a->lessThanOrEqual($c)); // true (less than)
 ```
 
-### isGreaterThan()
+### greaterThan()
 ```php
-public function isGreaterThan(mixed $other): bool
+public function greaterThan(mixed $other): bool
 ```
 
 Check if this angle is greater than another. Provided by the `Comparable` trait.
@@ -390,13 +390,13 @@ Check if this angle is greater than another. Provided by the `Comparable` trait.
 $a = new Angle(90, 'deg');
 $b = new Angle(45, 'deg');
 
-var_dump($a->isGreaterThan($b)); // true
-var_dump($b->isGreaterThan($a)); // false
+var_dump($a->greaterThan($b)); // true
+var_dump($b->greaterThan($a)); // false
 ```
 
-### isGreaterThanOrEqual()
+### greaterThanOrEqual()
 ```php
-public function isGreaterThanOrEqual(mixed $other): bool
+public function greaterThanOrEqual(mixed $other): bool
 ```
 
 Check if this angle is greater than or equal to another. Provided by the `Comparable` trait.
@@ -407,8 +407,8 @@ $a = new Angle(60, 'deg');
 $b = new Angle(60, 'deg');
 $c = new Angle(30, 'deg');
 
-var_dump($a->isGreaterThanOrEqual($b)); // true (equal)
-var_dump($a->isGreaterThanOrEqual($c)); // true (greater than)
+var_dump($a->greaterThanOrEqual($b)); // true (equal)
+var_dump($a->greaterThanOrEqual($c)); // true (greater than)
 ```
 
 ## Trigonometric Functions
@@ -697,9 +697,9 @@ $grad = new Angle(100, 'grad');
 $turn = new Angle(0.25, 'turn');
 
 // All represent the same angle (90°)
-var_dump($rad->equals($deg)); // true
-var_dump($deg->equals($grad)); // true
-var_dump($grad->equals($turn)); // true
+var_dump($rad->equal($deg)); // true
+var_dump($deg->equal($grad)); // true
+var_dump($grad->equal($turn)); // true
 ```
 
 ### Working with DMS (degrees, minutes, seconds)

@@ -51,7 +51,7 @@ class Mass extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             'g'   => self::PREFIXES_METRIC,        // gram
@@ -67,7 +67,7 @@ class Mass extends Measurement
     /**
      * Get the conversions for Mass measurements.
      *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array

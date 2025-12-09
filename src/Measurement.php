@@ -6,10 +6,9 @@ namespace Galaxon\Units;
 
 use DivisionByZeroError;
 use Galaxon\Core\Arrays;
-use Galaxon\Core\Comparable;
-use Galaxon\Core\Equatable;
 use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
+use Galaxon\Core\Traits\Comparable;
 use Galaxon\Core\Types;
 use LogicException;
 use Override;
@@ -25,7 +24,7 @@ use ValueError;
  * with automatic unit conversion, arithmetic operations, and comparison capabilities.
  *
  * Derived classes must implement:
- * - getBaseUnits(): Define the base units and specify which prefix sets they accept
+ * - getUnits(): Define the base units and specify which prefix sets they accept
  * - Optionally override getConversions(): Define conversion factors between units
  *
  * Prefix system:
@@ -40,7 +39,7 @@ use ValueError;
  * - Comparison and equality testing with epsilon tolerance
  * - Flexible string formatting and parsing
  */
-abstract class Measurement implements Stringable, Equatable
+abstract class Measurement implements Stringable
 {
     use Comparable;
 
@@ -54,7 +53,7 @@ abstract class Measurement implements Stringable, Equatable
     public readonly float $value;
 
     /**
-     * The unit of the measurement (e.g., 'kg', 'mm', 'hr').
+     * The unit of the measurement (e.g., 'kg', 'mm', 'h', 'm3').
      *
      * @var string
      */
@@ -79,8 +78,6 @@ abstract class Measurement implements Stringable, Equatable
 
     /**
      * Constants for prefix set codes.
-     *
-     * @var int
      */
     public const int PREFIXES_SMALL_METRIC = 1;
     public const int PREFIXES_LARGE_METRIC = 2;
@@ -99,12 +96,17 @@ abstract class Measurement implements Stringable, Equatable
      * Creates a new measurement with the specified value and unit.
      * Validates that the value is finite and the unit is valid for this measurement type.
      *
-     * @param float $value The numeric value in the given unit.
+     * The constructor is final because it's often called as "new static" to instantiate a derived class.
+     * In PHP, when overriding the constructor in a derived class, the signature may be altered.
+     * We want to prevent that so the "new static" expressions won't break.
+     * If you want to override the constructor, create a factory method instead.
+     *
+     * @param int|float $value The numeric value in the given unit.
      * @param string $unit The unit (e.g., 'kg', 'mm', 'hr').
      * @throws ValueError If the value is non-finite (±∞ or NaN) or if the unit is invalid.
      * @throws LogicException If the derived class is not properly configured.
      */
-    public function __construct(float $value, string $unit)
+    final public function __construct(int|float $value, string $unit)
     {
         // Check the value is finite.
         if (!is_finite($value)) {
@@ -141,7 +143,7 @@ abstract class Measurement implements Stringable, Equatable
      *   Angle::parse("90deg")       // Angle(90.0, 'deg')
      *   Time::parse("1.5e3 ms")     // Time(1500.0, 'ms')
      */
-    public static function parse(string $value): static
+    public static function parse(string $value): Measurement
     {
         // Prepare an error message with the original value.
         $class = new ReflectionClass(static::class)->getShortName();
@@ -155,7 +157,7 @@ abstract class Measurement implements Stringable, Equatable
 
         // Look for <num><unit>.
         // Whitespace between the number and unit is permitted, and the unit must be valid (case-sensitive).
-        $num = '[-+]?(\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?';
+        $num = '[-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?';
         $units = implode('|', static::getUnitConverter()->getValidUnits());
         if (preg_match("/^($num)\s*($units)$/", $value, $m)) {
             return new static((float)$m[1], $m[2]);
@@ -163,6 +165,21 @@ abstract class Measurement implements Stringable, Equatable
 
         // Invalid format.
         throw new ValueError($err);
+    }
+
+    /**
+     * Try to parse a string representation into a Measurement object of the calling class.
+     *
+     * @param string $value The string to parse.
+     * @return ?static A new Measurement parsed from the string, or null if parsing failed.
+     */
+    public static function tryParse(string $value): ?static
+    {
+        try {
+            return static::parse($value);
+        } catch (ValueError) {
+            return null;
+        }
     }
 
     // endregion
@@ -196,7 +213,7 @@ abstract class Measurement implements Stringable, Equatable
      * Format the measurement as a string with control over precision and notation.
      *
      * @param string $specifier Format type: 'f' (fixed), 'e'/'E' (scientific), 'g'/'G' (shortest).
-     * @param int|null $precision Number of digits (meaning depends on specifier).
+     * @param ?int $precision Number of digits (meaning depends on specifier).
      * @param bool $trimZeros If true, remove trailing zeros and decimal point.
      * @param bool $includeSpace If true, insert space between value and unit.
      * @return string The formatted measurement string.
@@ -214,8 +231,7 @@ abstract class Measurement implements Stringable, Equatable
         ?int $precision = null,
         bool $trimZeros = true,
         bool $includeSpace = true
-    ): string
-    {
+    ): string {
         // Return the formatted string. Arguments will be validated in formatValue().
         return static::formatValue($this->value, $specifier, $precision, $trimZeros)
                . ($includeSpace ? ' ' : '') . static::formatUnit($this->unit);
@@ -235,31 +251,84 @@ abstract class Measurement implements Stringable, Equatable
         return Floats::normalizeZero($this->value) . ' ' . static::formatUnit($this->unit);
     }
 
+    // endregion
+
+    // region Comparison methods
+
     /**
-     * Compare this measurement with another of the same type.
+     * Check the $this and $other objects have the same type, and get the value of the $other Measurement in the same
+     * unit as the $this one. Return the value.
      *
-     * Automatically converts the other measurement to this one's unit before comparing.
-     *
-     * @param mixed $other The measurement to compare with.
-     * @param float $epsilon The tolerance for considering values equal.
-     * @return int -1 if this < other, 0 if equal, 1 if this > other.
-     * @throws TypeError If comparing measurements of different types.
+     * @param self $other Measurement The other measurement to compare with.
+     * @return float|int The value of the other measurement in the same unit as this one.
      * @throws LogicException If no conversion path exists between the units.
+     * @throws TypeError If the other Measurement has a different type.
      */
-    #[Override]
-    public function compare(mixed $other, float $epsilon = Floats::EPSILON): int
+    private function preCompare(self $other)
     {
         // Check the two measurements have the same types.
-        if (!$this->hasSameType($other)) {
-            throw new TypeError('The two measurements being compared must be of the same types.');
+        if (!Types::haveSameType($this, $other)) {
+            throw new TypeError('The two measurements being compared must be of the same type.');
         }
 
         // Get the other Measurement in the same unit as this one.
         /** @var Measurement $other */
-        $other_value = $this->unit === $other->unit ? $other->value : $other->to($this->unit)->value;
+        return $this->unit === $other->unit ? $other->value : $other->to($this->unit)->value;
+    }
 
-        // Compare the values.
-        return Floats::compare($this->value, $other_value, $epsilon);
+    /**
+     * Compare two Measurements.
+     *
+     * This method will only return 0 for *exactly* equal.
+     * It's usually preferable to use approxCompare() instead, which allows for user-defined tolerances.
+     *
+     * Automatically converts the other measurement to this one's unit before comparing.
+     *
+     * @param mixed $other The measurement to compare with.
+     * @return int -1 if this < other, 0 if equal, 1 if this > other.
+     * @throws TypeError If the other Measurement has a different type.
+     * @throws LogicException If no conversion path exists between the units.
+     */
+    public function compare(mixed $other): int
+    {
+        $otherValue = $this->preCompare($other);
+        return Numbers::sign($this->value <=> $otherValue);
+    }
+
+    /**
+     * Compare two Measurements.
+     *
+     * This method returns 0 for *approximately* equal, i.e. within the given tolerances.
+     * Automatically converts the other measurement to this one's unit before comparing.
+     *
+     * @param mixed $other The measurement to compare with.
+     * @param float $relTol The relative tolerance for comparison.
+     * @param float $absTol The absolute tolerance for comparison.
+     * @return int -1 if this < other, 0 if equal, 1 if this > other.
+     * @throws TypeError If the other Measurement has a different type.
+     * @throws LogicException If no conversion path exists between the units.
+     */
+    public function approxCompare(
+        mixed $other,
+        float $relTol = Floats::DEFAULT_RELATIVE_TOLERANCE,
+        float $absTol = Floats::DEFAULT_ABSOLUTE_TOLERANCE
+    ): int {
+        $otherValue = $this->preCompare($other);
+        return Floats::approxCompare($this->value, $otherValue, $relTol, $absTol);
+    }
+
+    /**
+     * Compare this Measurement with another and determine if they are equal, within user-defined tolerances.
+     *
+     * @param mixed $other The value to compare with (can be any type).
+     * @return bool True if the values are equal, false otherwise.
+     */
+    public function approxEqual(
+        mixed $other,
+        float $relTol = Floats::DEFAULT_RELATIVE_TOLERANCE,
+        float $absTol = Floats::DEFAULT_ABSOLUTE_TOLERANCE
+    ): bool {
+        return ($other instanceof static) && $this->approxCompare($other, $relTol, $absTol) === 0;
     }
 
     // endregion
@@ -276,7 +345,7 @@ abstract class Measurement implements Stringable, Equatable
      * Automatically converts units before adding.
      *
      * @param self|int|float $otherOrValue Another Measurement or a numeric value.
-     * @param string|null $otherUnit The unit if providing a numeric value.
+     * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static A new Measurement containing the sum in this measurement's unit.
      * @throws TypeError If argument types are incorrect.
      * @throws ValueError If value is non-finite or unit is invalid.
@@ -290,16 +359,16 @@ abstract class Measurement implements Stringable, Equatable
      */
     public function add(self|int|float $otherOrValue, ?string $otherUnit = null): static
     {
-        // Validate the arguments.
+        // Validate and transform the arguments.
         $other = self::checkAddSubArgs($otherOrValue, $otherUnit);
 
         // Get the other Measurement in the same unit as this one.
-        $other_value = $this->unit === $other->unit
+        $otherValue = $this->unit === $other->unit
             ? $other->value
             : self::getUnitConverter()->convert($other->value, $other->unit, $this->unit);
 
         // Add the two values.
-        return new static($this->value + $other_value, $this->unit);
+        return new static($this->value + $otherValue, $this->unit);
     }
 
     /**
@@ -312,7 +381,7 @@ abstract class Measurement implements Stringable, Equatable
      * Automatically converts units before subtracting.
      *
      * @param self|int|float $otherOrValue Another Measurement or a numeric value.
-     * @param string|null $otherUnit The unit if providing a numeric value.
+     * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static A new Measurement containing the difference in this measurement's unit.
      * @throws TypeError If argument types are incorrect.
      * @throws ValueError If value is non-finite or unit is invalid.
@@ -325,16 +394,16 @@ abstract class Measurement implements Stringable, Equatable
      */
     public function sub(self|int|float $otherOrValue, ?string $otherUnit = null): static
     {
-        // Validate the arguments.
+        // Validate and transform the arguments.
         $other = self::checkAddSubArgs($otherOrValue, $otherUnit);
 
         // Get the other Measurement in the same unit as this one.
-        $other_value = $this->unit === $other->unit
+        $otherValue = $this->unit === $other->unit
             ? $other->value
             : self::getUnitConverter()->convert($other->value, $other->unit, $this->unit);
 
         // Subtract the values.
-        return new static($this->value - $other_value, $this->unit);
+        return new static($this->value - $otherValue, $this->unit);
     }
 
     /**
@@ -439,31 +508,7 @@ abstract class Measurement implements Stringable, Equatable
      *       'B' => self::PREFIXES_METRIC | self::PREFIXES_BINARY,  // byte (both sets)
      *   ];
      */
-    abstract public static function getBaseUnits(): array;
-
-    /**
-     * Define conversion factors between different units.
-     *
-     * Each conversion is an array with 3 or 4 elements:
-     * - [0] string: Initial unit symbol
-     * - [1] string: Final unit symbol
-     * - [2] int|float: Multiplier (must be non-zero)
-     * - [3] int|float: Optional offset (for affine conversions like temperature)
-     *
-     * Only direct conversions need to be specified; the system will automatically
-     * find paths for indirect conversions (e.g., if you have m→ft and ft→in, it
-     * can automatically convert m→in).
-     *
-     * @return array<int, array> Array of conversion definitions.
-     *
-     * @example
-     *   return [
-     *       ['m', 'ft', 3.28084],          // 1 m = 3.28084 ft
-     *       ['ft', 'in', 12],              // 1 ft = 12 in
-     *       ['C', 'F', 1.8, 32],           // F = C * 1.8 + 32
-     *   ];
-     */
-    abstract public static function getConversions(): array;
+    abstract public static function getUnits(): array;
 
     // endregion
 
@@ -519,6 +564,30 @@ abstract class Measurement implements Stringable, Equatable
     }
 
     /**
+     * Define conversion factors between different units.
+     *
+     * Each conversion is an array with 3 or 4 elements:
+     * - [0] string: Initial unit symbol
+     * - [1] string: Final unit symbol
+     * - [2] int|float: Multiplier (must be non-zero)
+     * - [3] int|float: Optional offset (for affine conversions like temperature)
+     *
+     * Only direct conversions need to be specified; the system will automatically
+     * find paths for indirect conversions (e.g., if you have m→ft and ft→in, it
+     * can automatically convert m→in).
+     *
+     * @return array<int, array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
+     *
+     * @example
+     *   return [
+     *       ['m', 'ft', 3.28084],          // 1 m = 3.28084 ft
+     *       ['ft', 'in', 12],              // 1 ft = 12 in
+     *       ['C', 'F', 1.8, 32],           // F = C * 1.8 + 32
+     *   ];
+     */
+    abstract public static function getConversions(): array;
+
+    /**
      * Binary prefixes for memory measurements.
      *
      * @return array<string, int|float>
@@ -532,8 +601,8 @@ abstract class Measurement implements Stringable, Equatable
             'Ti' => 2 ** 40, // tebi
             'Pi' => 2 ** 50, // pebi
             'Ei' => 2 ** 60, // exbi
-            // These next two values will be represented as floats because they exceed PHP_INT_MAX, but they will still be
-            // represented exactly because they're powers of 2.
+            // These next two values will be represented as floats because they exceed PHP_INT_MAX, but they will still
+            // be represented exactly because they're powers of 2.
             'Zi' => 2 ** 70, // zebi
             'Yi' => 2 ** 80, // yobi
         ];
@@ -566,28 +635,6 @@ abstract class Measurement implements Stringable, Equatable
         return $prefixes;
     }
 
-    /**
-     * Return a set of prefixes with the multipliers raised to a given exponent.
-     *
-     * @parma array<string, int|float> $prefixes The prefixes to raise to the exponent.
-     * @param int $exponent The exponent to raise the prefixes to.
-     * @return array<string, int|float>
-     */
-    public static function raisePrefixesToExponent(array $prefixes, int $exponent): array
-    {
-        // Validate exponent.
-        if ($exponent < 1) {
-            throw new ValueError('Exponent must be greater than 1.');
-        }
-
-        // Get the prefixes with multipliers raised to the exponent.
-        $result = [];
-        foreach ($prefixes as $prefix => $multiplier) {
-            $result[$prefix] = $multiplier ** $exponent;
-        }
-        return $result;
-    }
-
     // endregion
 
     // region Formatting methods (can be overridden)
@@ -605,7 +652,7 @@ abstract class Measurement implements Stringable, Equatable
      *
      * @param float $value The value to format.
      * @param string $specifier Format code: 'f', 'F', 'e', 'E', 'g', or 'G'.
-     * @param int|null $precision Number of digits (meaning depends on specifier).
+     * @param ?int $precision Number of digits (meaning depends on specifier).
      * @param bool $trimZeros If true, remove trailing zeros and decimal point.
      * @return string The formatted value string.
      * @throws ValueError If arguments are invalid.
@@ -617,8 +664,7 @@ abstract class Measurement implements Stringable, Equatable
         string $specifier = 'f',
         ?int $precision = null,
         bool $trimZeros = true
-    ): string
-    {
+    ): string {
         // Validate the value (defensive check since this is a protected method).
         if (!is_finite($value)) {
             throw new ValueError('The value to format must be finite.');
@@ -669,18 +715,29 @@ abstract class Measurement implements Stringable, Equatable
     protected static function formatUnit(string $unit): string
     {
         // Convert 'u' to 'μ' if necessary. Looks better.
-        [$prefix, $baseUnit] = static::getUnitConverter()->getUnitComponents($unit);
+        $converter = static::getUnitConverter();
+        [$prefix, $baseUnit, $exp] = $converter->decomposeUnit($unit);
         if ($prefix === 'u') {
-            return 'μ' . $baseUnit;
+            return $converter->composeUnit('μ', $baseUnit, $exp);
         }
 
-        // Format the unit as-is.
+        // Return the unit symbol as-is.
         return $unit;
     }
 
     // endregion
 
     // region Methods for working with parts
+
+    /**
+     * Get an array of units for use in parts-related methods.
+     *
+     * @return string[]
+     */
+    public static function getPartUnits(): array
+    {
+        return [];
+    }
 
     /**
      * Check smallest unit argument is valid.
@@ -691,9 +748,10 @@ abstract class Measurement implements Stringable, Equatable
      */
     protected static function validateSmallestUnit(string $smallestUnit): void
     {
-        if (!in_array($smallestUnit, static::PARTS_UNITS, true)) {
+        $partUnits = static::getPartUnits();
+        if (!in_array($smallestUnit, $partUnits, true)) {
             throw new ValueError('Invalid smallest unit specified. Must be one of: ' .
-                                 implode(', ', Arrays::quoteValues(static::PARTS_UNITS)));
+                                 implode(', ', Arrays::quoteValues($partUnits)));
         }
     }
 
@@ -712,6 +770,29 @@ abstract class Measurement implements Stringable, Equatable
     }
 
     /**
+     * Validate the part units array.
+     *
+     * @return void
+     * @throws LogicException
+     */
+    protected static function validatePartUnits(): void
+    {
+        // Ensure we have some part units.
+        $partUnits = static::getPartUnits();
+        if (empty($partUnits)) {
+            throw new LogicException('Derived measurement type must define parts units');
+        }
+
+        // Ensure all part units are valid base units.
+        $baseUnits = array_keys(static::getUnits());
+        foreach ($partUnits as $partUnit) {
+            if (!in_array($partUnit, $baseUnits, true)) {
+                throw new LogicException('Part units must be valid base units.');
+            }
+        }
+    }
+
+    /**
      * Create a new Measurement object (of the derived type) as a sum of measurements of the same type in different
      * units.
      *
@@ -719,52 +800,48 @@ abstract class Measurement implements Stringable, Equatable
      * If the final value should be negative, include a 'sign' part with a value of -1.
      *
      * @param array<string, int|float> $parts The parts and optional sign.
-     * @return self A new Measurement equal to the sum of the parts, with the unit equal to the smallest unit.
+     * @return static A new Measurement equal to the sum of the parts, with the unit equal to the smallest unit.
      * @throws TypeError If any of the values are not numbers.
      * @throws ValueError If any of the values are non-finite or negative.
      * @throws LogicException If PARTS_UNITS is not defined in the derived class.
      */
     public static function fromPartsArray(array $parts): static
     {
-        // Check that PARTS_UNITS is defined.
-        if (empty(static::PARTS_UNITS)) {
-            throw new LogicException('Derived measurement type must define PARTS_UNITS.');
-        }
+        // Validate the part units.
+        static::validatePartUnits();
+        $partUnits = static::getPartUnits();
 
-        // Validate the array.
-        $validKeys = ['sign', ...static::PARTS_UNITS];
+        // Validate the parts array.
+        $validKeys = ['sign', ...$partUnits];
         foreach ($parts as $key => $value) {
             if (!in_array($key, $validKeys, true)) {
                 throw new ValueError('Invalid part name: ' . $key);
             }
-            if (!Types::isNumber($value)) {
+            if (!Numbers::isNumber($value)) {
                 throw new TypeError('All values must be numbers.');
             }
             if ($key === 'sign') {
                 if ($value !== -1 && $value !== 1) {
                     throw new ValueError('Sign must be -1 or 1.');
                 }
-            }
-            elseif (!is_finite($value) || $value < 0.0) {
+            } elseif (!is_finite($value) || $value < 0.0) {
                 throw new ValueError('All part values must be finite and non-negative.');
             }
         }
 
-        // Find the smallest unit.
-        $smallestUnitIndex = array_key_last(static::PARTS_UNITS);
-        $smallestUnit = static::PARTS_UNITS[$smallestUnitIndex];
-
         // Initialize the Measurement to 0, with the unit set to the smallest unit.
+        $smallestUnitIndex = array_key_last($partUnits);
+        $smallestUnit = $partUnits[$smallestUnitIndex];
         $t = new (self::getClassName())(0, $smallestUnit);
 
         // Check each of the possible units.
-        foreach (static::PARTS_UNITS as $unit) {
+        foreach ($partUnits as $unit) {
             // Ignore omitted units.
             if (!isset($parts[$unit])) {
                 continue;
             }
 
-            // Add the part. It will be converted to seconds.
+            // Add the part. It will be converted to the smallest unit automatically.
             $t = $t->add($parts[$unit], $unit);
         }
 
@@ -794,16 +871,15 @@ abstract class Measurement implements Stringable, Equatable
         static::validateSmallestUnit($smallestUnit);
         static::validatePrecision($precision);
 
-        // Check that PARTS_UNITS is defined.
-        if (empty(static::PARTS_UNITS)) {
-            throw new LogicException('Derived measurement type must define PARTS_UNITS.');
-        }
+        // Validate part units.
+        static::validatePartUnits();
+        $partUnits = static::getPartUnits();
 
         // Prep.
         $converter = static::getUnitConverter();
         $sign = Numbers::sign($this->value, false);
         $parts = ['sign' => $sign];
-        $smallestUnitIndex = (int)array_search($smallestUnit, static::PARTS_UNITS, true);
+        $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
 
         // Initialize the remainder to the initial value converted to the smallest unit.
         $rem = abs($this->to($smallestUnit)->value);
@@ -811,7 +887,7 @@ abstract class Measurement implements Stringable, Equatable
         // Get the integer parts.
         for ($i = 0; $i < $smallestUnitIndex; $i++) {
             // Get the number of current units in the smallest unit.
-            $curUnit = static::PARTS_UNITS[$i];
+            $curUnit = $partUnits[$i];
             $factor = $converter->convert(1, $curUnit, $smallestUnit);
             $wholeNumCurUnit = floor($rem / $factor);
             $parts[$curUnit] = (int)$wholeNumCurUnit;
@@ -833,8 +909,8 @@ abstract class Measurement implements Stringable, Equatable
         // Carry in reverse order.
         if ($precision !== null) {
             for ($i = $smallestUnitIndex; $i >= 1; $i--) {
-                $curUnit = static::PARTS_UNITS[$i];
-                $prevUnit = static::PARTS_UNITS[$i - 1];
+                $curUnit = $partUnits[$i];
+                $prevUnit = $partUnits[$i - 1];
                 if ($parts[$curUnit] >= $converter->convert(1, $prevUnit, $curUnit)) {
                     $parts[$curUnit] = 0;
                     $parts[$prevUnit]++;
@@ -852,7 +928,7 @@ abstract class Measurement implements Stringable, Equatable
     /**
      * Get the fully qualified class name of the derived measurement type.
      *
-     * @return string The fully qualified class name.
+     * @return class-string The fully qualified class name.
      */
     private static function getClassName(): string
     {
@@ -871,17 +947,21 @@ abstract class Measurement implements Stringable, Equatable
     public static function getUnitConverter(): UnitConverter
     {
         // Get the name of the calling class.
-        $className = static::getClassName();
+        /** @var string $className */
+        $className = self::getClassName();
 
         // Check the unit converter for the derived class has been validated and created.
         if (!isset(self::$unitConverters[$className])) {
             // Initialize the UnitConverter for this Measurement type.
             // The UnitConverter constructor will validate the class setup.
             try {
-                self::$unitConverters[$className] = new UnitConverter(static::getBaseUnits(), static::getPrefixes(),
-                    static::getConversions());
+                self::$unitConverters[$className] = new UnitConverter(
+                    static::getUnits(),
+                    static::getPrefixes(),
+                    static::getConversions()
+                );
             } catch (LogicException $e) {
-                throw new LogicException('The ' . static::getClassName() . ' class is not properly set up: ' .
+                throw new LogicException('The ' . self::getClassName() . ' class is not properly set up: ' .
                                          $e->getMessage());
             }
         }
@@ -898,7 +978,7 @@ abstract class Measurement implements Stringable, Equatable
      * - Separate value and unit arguments
      *
      * @param self|int|float $otherOrValue Another Measurement or a numeric value.
-     * @param string|null $otherUnit The unit if providing a numeric value.
+     * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static The validated Measurement to add or subtract.
      * @throws TypeError If argument types are incorrect.
      * @throws ValueError If value is non-finite or unit is invalid.
@@ -906,21 +986,24 @@ abstract class Measurement implements Stringable, Equatable
      */
     protected static function checkAddSubArgs(self|int|float $otherOrValue, ?string $otherUnit = null): static
     {
+        // One-parameter version.
         if ($otherOrValue instanceof static && $otherUnit === null) {
             return $otherOrValue;
         }
 
-        if (Types::isNumber($otherOrValue) && is_string($otherUnit)) {
+        // Two-parameter version.
+        if (Numbers::isNumber($otherOrValue) && is_string($otherUnit)) {
             // This will throw if the value is non-finite or the unit is invalid.
+            /** @var int|float $otherOrValue */
             return new static($otherOrValue, $otherUnit);
         }
 
         // Invalid argument types.
-        $class = static::getClassName();
-        throw new TypeError("Invalid argument types. Either the first argument must be an object of " .
+        $class = self::getClassName();
+        throw new TypeError('Invalid argument types. Either the first argument must be an object of ' .
                             "type $class, and the second must be null or omitted; or, the first argument must be " .
-                            "the value (int or float) of the measurement to add, and the second must be its unit " .
-                            "(string).");
+                            'the value (int or float) of the measurement to add, and the second must be its unit ' .
+                            '(string).');
     }
 
     // endregion

@@ -31,7 +31,7 @@ class Length extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             'm'  => self::PREFIXES_METRIC,  // metre
@@ -50,7 +50,7 @@ class Length extends Measurement
     /**
      * Get the conversions for Length measurements.
      *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     public static function getConversions(): array
     {

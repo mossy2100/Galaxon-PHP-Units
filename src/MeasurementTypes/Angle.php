@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Galaxon\Units\MeasurementTypes;
 
-use Galaxon\Core\Arrays;
 use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
-use Galaxon\Core\Types;
 use Galaxon\Units\Measurement;
 use Override;
 use TypeError;
@@ -17,15 +15,11 @@ class Angle extends Measurement
 {
     // region Constants
 
-    // Epsilons for comparisons.
-    public const float RAD_EPSILON = 1e-9;
-    public const float TRIG_EPSILON = 1e-12;
-
     /**
-     * Ordered list of angle unit abbreviations from largest (degrees) to smallest (arcseconds).
-     * Used for parts decomposition and validation.
+     * Epsilons for comparisons.
      */
-    protected const array PARTS_UNITS = ['deg', 'arcmin', 'arcsec'];
+    public const float RAD_EPSILON = 1e-9;
+    public const float TRIG_EPSILON = 1e-15;
 
     // endregion
 
@@ -45,10 +39,10 @@ class Angle extends Measurement
      * If valid, the angle is returned; otherwise, an exception is thrown.
      *
      * @param string $value The string to parse.
-     * @return static A new angle equivalent to the provided string.
+     * @return Measurement A new Angle equivalent to the provided string.
      * @throws ValueError If the string does not represent a valid angle.
      */
-    public static function parse(string $value): static
+    public static function parse(string $value): Measurement
     {
         try {
             // Try to parse the angle using Measurement::parse().
@@ -56,7 +50,7 @@ class Angle extends Measurement
         } catch (ValueError $e) {
             // Check for a format containing symbols for degrees, arcminutes, and arcseconds.
             $num = '\d+(?:\.\d+)?(?:[eE][+-]?\d+)?';
-            $pattern = "/^(?:(?P<sign>[-+]?)\s*)?"
+            $pattern = '/^(?:(?P<sign>[-+]?)\s*)?'
                        . "(?:(?P<deg>$num)°\s*)?"
                        . "(?:(?P<min>$num)[′']\s*)?"
                        . "(?:(?P<sec>$num)[″\"])?$/u";
@@ -74,8 +68,8 @@ class Angle extends Measurement
                 $m = isset($matches['min']) ? (float)$matches['min'] : 0.0;
                 $s = isset($matches['sec']) ? (float)$matches['sec'] : 0.0;
 
-                // Convert to angle.
-                return self::fromParts($d, $m, $s, $sign);
+                // Convert to Angle.
+                return static::fromParts($d, $m, $s, $sign);
             }
 
             // Invalid format.
@@ -93,7 +87,7 @@ class Angle extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             'rad'    => self::PREFIXES_SMALL_METRIC,  // radian
@@ -109,7 +103,7 @@ class Angle extends Measurement
     /**
      * Get the conversions for Angle measurements.
      *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array
@@ -129,21 +123,37 @@ class Angle extends Measurement
     // region Methods for working with angles in degrees, arcminutes, and arcseconds
 
     /**
+     * Ordered list of angle units from largest (degrees) to smallest (arcseconds).
+     * Used for parts decomposition and validation.
+     *
+     * @return string[]
+     */
+    #[Override]
+    public static function getPartUnits(): array
+    {
+        return ['deg', 'arcmin', 'arcsec'];
+    }
+
+    /**
      * Create an Angle as a sum of angles in different units.
      *
      * All parts must be non-negative.
      * If the Angle is negative, set the $sign parameter to -1.
      *
-     * @param float $degrees The degrees part.
-     * @param float $arcmin The arcminutes part (optional).
-     * @param float $arcsec The arcseconds part (optional).
+     * @param int|float $degrees The number of degrees.
+     * @param int|float $arcmin The number of arcminutes.
+     * @param int|float $arcsec The number of arcseconds.
      * @param int $sign -1 if the Angle is negative, 1 (or omitted) otherwise.
      * @return self A new Angle in degrees with a magnitude equal to the sum of the parts.
      * @throws TypeError If any of the values are not numbers.
      * @throws ValueError If any of the values are non-finite or negative.
      */
-    public static function fromParts(float $degrees, float $arcmin = 0.0, float $arcsec = 0.0, int $sign = 1): self
-    {
+    public static function fromParts(
+        int|float $degrees = 0,
+        int|float $arcmin = 0,
+        int|float $arcsec = 0,
+        int $sign = 1
+    ): self {
         return self::fromPartsArray([
             'deg' => $degrees,
             'arcmin' => $arcmin,
@@ -165,21 +175,21 @@ class Angle extends Measurement
      */
     public function formatParts(string $smallestUnit = 'arcsec', ?int $precision = null): string
     {
-        // Validate arguments.
+        // Validate arguments and part units.
         self::validateSmallestUnit($smallestUnit);
         self::validatePrecision($precision);
-
-        // Get the parts.
-        $parts = $this->toParts($smallestUnit, $precision);
+        self::validatePartUnits();
 
         // Prep.
-        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
+        $partUnits = static::getPartUnits();
+        $parts = $this->toParts($smallestUnit, $precision);
+        $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
         $result = [];
         $symbols = ['deg' => '°', 'arcmin' => '′', 'arcsec' => '″'];
 
         // Generate string as parts.
         for ($i = 0; $i <= $smallestUnitIndex; $i++) {
-            $unit = self::PARTS_UNITS[$i];
+            $unit = $partUnits[$i];
             $value = $parts[$unit] ?? 0;
 
             // Format the value.
@@ -215,7 +225,8 @@ class Angle extends Measurement
      */
     public function sin(): float
     {
-        return sin($this->value);
+        $radians = $this->to('rad')->value;
+        return sin($radians);
     }
 
     /**
@@ -225,7 +236,8 @@ class Angle extends Measurement
      */
     public function cos(): float
     {
-        return cos($this->value);
+        $radians = $this->to('rad')->value;
+        return cos($radians);
     }
 
     /**
@@ -235,12 +247,13 @@ class Angle extends Measurement
      */
     public function tan(): float
     {
-        $s = sin($this->value);
-        $c = cos($this->value);
+        $radians = $this->to('rad')->value;
+        $s = sin($radians);
+        $c = cos($radians);
 
         // If cos is effectively zero, return ±INF (sign chosen by the side, i.e., sign of sine).
         // The built-in tan() function normally doesn't ever return ±INF.
-        if (Floats::approxEqual($c, 0, self::TRIG_EPSILON)) {
+        if (Floats::approxEqual($c, 0, 0, self::TRIG_EPSILON)) {
             return Numbers::copySign(INF, $s);
         }
 
@@ -255,10 +268,11 @@ class Angle extends Measurement
      */
     public function sec(): float
     {
-        $c = cos($this->value);
+        $radians = $this->to('rad')->value;
+        $c = cos($radians);
 
         // If cos is effectively zero, return ±INF.
-        if (Floats::approxEqual($c, 0, self::TRIG_EPSILON)) {
+        if (Floats::approxEqual($c, 0, 0, self::TRIG_EPSILON)) {
             return Numbers::copySign(INF, $c);
         }
 
@@ -272,10 +286,11 @@ class Angle extends Measurement
      */
     public function csc(): float
     {
-        $s = sin($this->value);
+        $radians = $this->to('rad')->value;
+        $s = sin($radians);
 
         // If sin is effectively zero, return ±INF.
-        if (Floats::approxEqual($s, 0, self::TRIG_EPSILON)) {
+        if (Floats::approxEqual($s, 0, 0, self::TRIG_EPSILON)) {
             return Numbers::copySign(INF, $s);
         }
 
@@ -289,11 +304,12 @@ class Angle extends Measurement
      */
     public function cot(): float
     {
-        $s = sin($this->value);
-        $c = cos($this->value);
+        $radians = $this->to('rad')->value;
+        $s = sin($radians);
+        $c = cos($radians);
 
         // If sin is effectively zero, return ±INF.
-        if (Floats::approxEqual($s, 0, self::TRIG_EPSILON)) {
+        if (Floats::approxEqual($s, 0, 0, self::TRIG_EPSILON)) {
             return Numbers::copySign(INF, $c);
         }
 
@@ -311,7 +327,8 @@ class Angle extends Measurement
      */
     public function sinh(): float
     {
-        return sinh($this->value);
+        $radians = $this->to('rad')->value;
+        return sinh($radians);
     }
 
     /**
@@ -321,7 +338,8 @@ class Angle extends Measurement
      */
     public function cosh(): float
     {
-        return cosh($this->value);
+        $radians = $this->to('rad')->value;
+        return cosh($radians);
     }
 
     /**
@@ -331,7 +349,8 @@ class Angle extends Measurement
      */
     public function tanh(): float
     {
-        return tanh($this->value);
+        $radians = $this->to('rad')->value;
+        return tanh($radians);
     }
 
     /**
@@ -341,7 +360,8 @@ class Angle extends Measurement
      */
     public function sech(): float
     {
-        return fdiv(1.0, cosh($this->value));
+        $radians = $this->to('rad')->value;
+        return fdiv(1.0, cosh($radians));
     }
 
     /**
@@ -351,10 +371,11 @@ class Angle extends Measurement
      */
     public function csch(): float
     {
-        $sh = sinh($this->value);
+        $radians = $this->to('rad')->value;
+        $sh = sinh($radians);
 
         // sinh(0) = 0, so return ±INF for values near zero.
-        if (Floats::approxEqual($sh, 0, self::TRIG_EPSILON)) {
+        if (Floats::approxEqual($sh, 0, 0, self::TRIG_EPSILON)) {
             return Numbers::copySign(INF, $sh);
         }
 
@@ -368,14 +389,15 @@ class Angle extends Measurement
      */
     public function coth(): float
     {
-        $sh = sinh($this->value);
+        $radians = $this->to('rad')->value;
+        $sh = sinh($radians);
 
         // sinh(0) = 0, so return ±INF for values near zero.
-        if (Floats::approxEqual($sh, 0, self::TRIG_EPSILON)) {
-            return Numbers::copySign(INF, cosh($this->value));
+        if (Floats::approxEqual($sh, 0, 0, self::TRIG_EPSILON)) {
+            return Numbers::copySign(INF, cosh($radians));
         }
 
-        return fdiv(cosh($this->value), $sh);
+        return fdiv(cosh($radians), $sh);
     }
 
     // endregion
@@ -440,17 +462,29 @@ class Angle extends Measurement
     }
 
     /**
-     * Override Compareable::compare() with an epsilon more suitable for comparing values in radians.
+     * Check if this Angle is approximately equal to another.
      *
-     * @param mixed $other The other value to compare to.
-     * @param float $epsilon The maximum absolute difference between the values for them to be considered equal.
-     * @return int -1 if this value is less than $other, 0 if they are equal, or 1 if this value is greater than $other.
-     * @throws TypeError If $other is not an Angle.
+     * Overrides the parent method to use different default tolerances for comparing Angles.
+     * For Angles, we want to compare the absolute difference in radians.
+     *
+     * @param mixed $other The value to compare with.
+     * @param float $relTol The relative tolerance (default 0).
+     * @param float $absTol The absolute tolerance (default 1e-9).
+     * @return bool True if the values are equal, false otherwise (including for incompatible types).
      */
-    #[Override]
-    public function compare(mixed $other, float $epsilon = self::RAD_EPSILON): int
+    public function approxEqual(mixed $other, float $relTol = 0, float $absTol = self::RAD_EPSILON): bool
     {
-        return parent::compare($other, $epsilon);
+        // Compare types.
+        if (!$other instanceof self) {
+            return false;
+        }
+
+        // Get both angles in radians.
+        $a = ($this->unit === 'rad') ? $this : $this->to('rad');
+        $b = ($other->unit === 'rad') ? $other : $other->to('rad');
+
+        // Call parent method.
+        return $a->approxCompare($b, $relTol, $absTol) === 0;
     }
 
     // endregion

@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Galaxon\Units\MeasurementTypes;
 
 use DateInterval;
-use Galaxon\Core\Arrays;
-use Galaxon\Core\Floats;
 use Galaxon\Core\Numbers;
-use Galaxon\Core\Types;
 use Galaxon\Units\Measurement;
 use Override;
 use TypeError;
@@ -16,16 +13,6 @@ use ValueError;
 
 class Time extends Measurement
 {
-    // region Constants
-
-    /**
-     * Ordered list of time unit abbreviations from largest (years) to smallest (seconds).
-     * Used for parts decomposition and validation.
-     */
-    protected const array PARTS_UNITS = ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
-
-    // endregion
-
     // region Factory methods
 
     /**
@@ -92,7 +79,7 @@ class Time extends Measurement
      * @return array<string, int> Array of units with allowed prefixes flags.
      */
     #[Override]
-    public static function getBaseUnits(): array
+    public static function getUnits(): array
     {
         return [
             's'   => self::PREFIXES_METRIC,  // second
@@ -113,7 +100,7 @@ class Time extends Measurement
      * the average length of a year in the Gregorian calendar. If you want, you can add or update conversions using the
      * `Time::getUnitConverter()->addConversion()` method.
      *
-     * @return array<array{string, string, int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array
@@ -134,10 +121,22 @@ class Time extends Measurement
     // region Methods for working with time as parts
 
     /**
+     * Ordered list of Time unit abbreviations from largest (years) to smallest (seconds).
+     * Used for parts decomposition and validation.
+     *
+     * @return string[]
+     */
+    #[Override]
+    public static function getPartUnits(): array
+    {
+        return ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
+    }
+
+    /**
      * Create a Time as a sum of times in different units.
      *
      * All parts must be non-negative.
-     * If the Time is negative, set the $negative flag to true.
+     * If the Time is negative, set the $sign parameter to -1.
      *
      * NB: This method doesn't include a parameter for weeks, as this may have been confusing and led to bugs.
      * Many date and time constructors don't include a parameter for weeks, and only have the 6 usual ones.
@@ -156,10 +155,14 @@ class Time extends Measurement
      * @throws ValueError If any of the values are non-finite or negative.
      */
     public static function fromParts(
-        int|float $years, int|float $months = 0, int|float $days = 0, int|float $hours = 0, int|float $minutes = 0,
-        int|float $seconds = 0, int $sign = 1
-    ): self
-    {
+        int|float $years = 0,
+        int|float $months = 0,
+        int|float $days = 0,
+        int|float $hours = 0,
+        int|float $minutes = 0,
+        int|float $seconds = 0,
+        int $sign = 1
+    ): self {
         return self::fromPartsArray([
             'y'   => $years,
             'mo'  => $months,
@@ -184,20 +187,20 @@ class Time extends Measurement
      */
     public function formatParts(string $smallestUnit = 's', ?int $precision = null): string
     {
-        // Validate arguments.
+        // Validate arguments and part units.
         self::validateSmallestUnit($smallestUnit);
         self::validatePrecision($precision);
-
-        // Get the parts.
-        $parts = $this->toParts($smallestUnit, $precision);
+        self::validatePartUnits();
 
         // Prep.
-        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
+        $partUnits = static::getPartUnits();
+        $parts = $this->toParts($smallestUnit, $precision);
+        $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
         $result = [];
 
         // Generate string as parts.
         for ($i = 0; $i <= $smallestUnitIndex; $i++) {
-            $unit = self::PARTS_UNITS[$i];
+            $unit = $partUnits[$i];
             $value = $parts[$unit] ?? 0;
 
             // Skip zero components.
@@ -236,9 +239,11 @@ class Time extends Measurement
     {
         // Validate argument.
         self::validateSmallestUnit($smallestUnit);
+        self::validatePartUnits();
 
         // Prep.
-        $smallestUnitIndex = (int)array_search($smallestUnit, self::PARTS_UNITS, true);
+        $partUnits = static::getPartUnits();
+        $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
         $parts = $this->toParts($smallestUnit, 0);  // DateInterval requires integer parts.
         $spec = 'P';
         $labels = ['Y', 'M', 'W', 'D', 'H', 'M', 'S'];
@@ -246,7 +251,7 @@ class Time extends Measurement
 
         // Build the specification string.
         for ($i = 0; $i <= $smallestUnitIndex; $i++) {
-            $unit = self::PARTS_UNITS[$i];
+            $unit = $partUnits[$i];
             $value = $parts[$unit] ?? 0;
 
             // Add time separator before hours.

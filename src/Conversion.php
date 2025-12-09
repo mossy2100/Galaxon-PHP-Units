@@ -94,8 +94,7 @@ class Conversion implements Stringable
         string $finalUnit,
         int|float|FloatWithError $multiplier,
         int|float|FloatWithError $offset = 0
-    )
-    {
+    ) {
         // Ensure multiplier is a FloatWithError.
         if (!$multiplier instanceof FloatWithError) {
             $multiplier = new FloatWithError($multiplier);
@@ -128,7 +127,8 @@ class Conversion implements Stringable
      * @param int|float|FloatWithError $value The input value.
      * @return FloatWithError The result of the conversion.
      */
-    public function apply(int|float|FloatWithError $value): FloatWithError {
+    public function apply(int|float|FloatWithError $value): FloatWithError
+    {
         // Convert the value. y = mx + k
         return $this->multiplier->mul($value)->add($this->offset);
     }
