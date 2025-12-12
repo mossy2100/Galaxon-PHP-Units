@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Galaxon\Units\Tests;
+namespace Galaxon\Units\Tests\MeasurementTypes;
 
 use DateInterval;
 use Galaxon\Units\MeasurementTypes\Time;

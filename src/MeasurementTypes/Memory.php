@@ -20,8 +20,8 @@ class Memory extends Measurement
     public static function getUnits(): array
     {
         return [
-            'B' => self::PREFIXES_LARGE,  // byte
-            'b' => self::PREFIXES_LARGE,  // bit
+            'B' => self::PREFIX_CODE_LARGE,  // byte
+            'b' => self::PREFIX_CODE_LARGE,  // bit
         ];
     }
 

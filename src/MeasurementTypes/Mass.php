@@ -54,8 +54,8 @@ class Mass extends Measurement
     public static function getUnits(): array
     {
         return [
-            'g'   => self::PREFIXES_METRIC,        // gram
-            't'   => self::PREFIXES_LARGE_METRIC,  // tonne
+            'g'   => self::PREFIX_CODE_METRIC,        // gram
+            't'   => self::PREFIX_CODE_LARGE_METRIC,  // tonne
             'gr'  => 0,  // grain
             'oz'  => 0,  // ounce
             'lb'  => 0,  // pound

@@ -20,7 +20,7 @@ class Area extends Measurement
     public static function getUnits(): array
     {
         return [
-            'm2'  => self::PREFIXES_METRIC,  // square metre
+            'm2'  => self::PREFIX_CODE_METRIC,  // square metre
             'ha'  => 0,  // hectare
             'ac'  => 0,  // acre
             'mi2' => 0,  // square mile

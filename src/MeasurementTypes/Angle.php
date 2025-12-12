@@ -29,12 +29,11 @@ class Angle extends Measurement
      * Checks that the input string, which is meant to indicate an angle, is valid.
      *
      * Different units (deg, rad, grad, turn) are supported, as used in CSS.
-     * There can be spaces between the number and the unit.
+     * There can be zero or more spaces between the number and the unit.
      * @see https://developer.mozilla.org/en-US/docs/Web/CSS/angle
      *
      * Symbols for degrees, arcminutes, and arcseconds are also supported.
-     * There cannot be any space between a number and its unit, but it's ok to have a single space
-     * between two parts.
+     * There cannot be any space between a number and its symbol, but it's ok to have spaces between parts.
      *
      * If valid, the angle is returned; otherwise, an exception is thrown.
      *
@@ -49,11 +48,11 @@ class Angle extends Measurement
             return parent::parse($value);
         } catch (ValueError $e) {
             // Check for a format containing symbols for degrees, arcminutes, and arcseconds.
-            $num = '\d+(?:\.\d+)?(?:[eE][+-]?\d+)?';
+            $rxNum = '\d+(?:\.\d+)?(?:[eE][+-]?\d+)?';
             $pattern = '/^(?:(?P<sign>[-+]?)\s*)?'
-                       . "(?:(?P<deg>$num)°\s*)?"
-                       . "(?:(?P<min>$num)[′']\s*)?"
-                       . "(?:(?P<sec>$num)[″\"])?$/u";
+                       . "(?:(?P<deg>$rxNum)°\s*)?"
+                       . "(?:(?P<min>$rxNum)[′']\s*)?"
+                       . "(?:(?P<sec>$rxNum)[″\"])?$/u";
             if (preg_match($pattern, $value, $matches)) {
                 // Require at least one component (deg/min/sec).
                 if (empty($matches['deg']) && empty($matches['min']) && empty($matches['sec'])) {
@@ -90,11 +89,11 @@ class Angle extends Measurement
     public static function getUnits(): array
     {
         return [
-            'rad'    => self::PREFIXES_SMALL_METRIC,  // radian
+            'rad'    => self::PREFIX_CODE_SMALL_METRIC,  // radian
             'deg'    => 0,  // degree
             'arcmin' => 0,  // arcminute
             'arcsec' => 0,  // arcsecond
-            'as'     => self::PREFIXES_SMALL_METRIC,  // arcsecond (alias used with prefixes)
+            'as'     => self::PREFIX_CODE_SMALL_METRIC,  // arcsecond (alias used with prefixes)
             'grad'   => 0,  // gradian
             'turn'   => 0,  // turn/revolution
         ];
@@ -155,10 +154,10 @@ class Angle extends Measurement
         int $sign = 1
     ): self {
         return self::fromPartsArray([
-            'deg' => $degrees,
+            'deg'    => $degrees,
             'arcmin' => $arcmin,
             'arcsec' => $arcsec,
-            'sign' => $sign
+            'sign'   => $sign
         ]);
     }
 
@@ -474,17 +473,17 @@ class Angle extends Measurement
      */
     public function approxEqual(mixed $other, float $relTol = 0, float $absTol = self::RAD_EPSILON): bool
     {
-        // Compare types.
+        // Check for incompatible types.
         if (!$other instanceof self) {
             return false;
         }
 
-        // Get both angles in radians.
-        $a = ($this->unit === 'rad') ? $this : $this->to('rad');
-        $b = ($other->unit === 'rad') ? $other : $other->to('rad');
+        // Convert both to radians.
+        $thisRad = $this->unit === 'rad' ? $this->value : $this->to('rad')->value;
+        $otherRad = $other->unit === 'rad' ? $other->value : $other->to('rad')->value;
 
-        // Call parent method.
-        return $a->approxCompare($b, $relTol, $absTol) === 0;
+        // Compare the values.
+        return Floats::approxEqual($thisRad, $otherRad, $relTol, $absTol);
     }
 
     // endregion

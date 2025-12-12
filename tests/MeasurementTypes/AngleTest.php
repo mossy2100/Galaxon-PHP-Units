@@ -49,7 +49,7 @@ final class AngleTest extends TestCase
     }
 
     /**
-     * Test that creating an angle with NaN throws ValueError.
+     * Test that creating an angle with NAN throws ValueError.
      */
     public function testConstructorWithNan(): void
     {
@@ -260,7 +260,7 @@ final class AngleTest extends TestCase
     }
 
     /**
-     * Test that dividing by NaN throws ValueError.
+     * Test that dividing by NAN throws ValueError.
      */
     public function testDivWithNonFiniteParameters(): void
     {
@@ -291,7 +291,7 @@ final class AngleTest extends TestCase
         $this->assertFloatEquals(0.5, $a->cos());
         $this->assertFloatEquals(sqrt(3), $a->tan());
 
-        // Verify that tan(90°) = ∞.
+        // Verify that tan(90°) = INF.
         $t = new Angle(90, 'deg');
         $this->assertTrue(is_infinite($t->tan()));
     }
@@ -314,13 +314,13 @@ final class AngleTest extends TestCase
 
         // Verify singularities.
         $at90 = new Angle(90, 'deg');
-        $this->assertTrue(is_infinite($at90->sec())); // sec(90°) = ∞
+        $this->assertTrue(is_infinite($at90->sec())); // sec(90°) = INF
         $this->assertFloatEquals(1.0, $at90->csc()); // csc(90°) = 1
 
         $at0 = new Angle(0, 'deg');
         $this->assertFloatEquals(1.0, $at0->sec()); // sec(0°) = 1
-        $this->assertTrue(is_infinite($at0->csc())); // csc(0°) = ∞
-        $this->assertTrue(is_infinite($at0->cot())); // cot(0°) = ∞
+        $this->assertTrue(is_infinite($at0->csc())); // csc(0°) = INF
+        $this->assertTrue(is_infinite($at0->cot())); // cot(0°) = INF
     }
 
     /**
@@ -361,8 +361,8 @@ final class AngleTest extends TestCase
         // At zero: csch and coth have singularities.
         $zero = new Angle(0, 'rad');
         $this->assertFloatEquals(1.0, $zero->sech()); // sech(0) = 1/cosh(0) = 1
-        $this->assertFloatEquals(INF, $zero->csch()); // csch(0) = ∞
-        $this->assertFloatEquals(INF, $zero->coth()); // coth(0) = ∞
+        $this->assertFloatEquals(INF, $zero->csch()); // csch(0) = INF
+        $this->assertFloatEquals(INF, $zero->coth()); // coth(0) = INF
     }
 
     /**
@@ -374,10 +374,10 @@ final class AngleTest extends TestCase
     public function testFormatVariants(): void
     {
         $a = new Angle(12.5, 'deg');
-        $this->assertSame('0.2181661565 rad', $a->to('rad')->format('f', 10));
-        $this->assertSame('12.50 deg', $a->to('deg')->format('f', 2, false));
-        $this->assertSame('13.888888889 grad', $a->to('grad')->format('f', 9));
-        $this->assertSame('0.0347222222 turn', $a->to('turn')->format('f', 10));
+        $this->assertSame('0.2181661565rad', $a->to('rad')->format('f', 10));
+        $this->assertSame('12.50deg', $a->to('deg')->format('f', 2, false));
+        $this->assertSame('13.888888889grad', $a->to('grad')->format('f', 9));
+        $this->assertSame('0.0347222222 turn', $a->to('turn')->format('f', 10, true, true));
 
         // DMS via format.
         $this->assertSame('12° 30′ 0″', $a->formatParts('arcsec', 0));
@@ -826,7 +826,7 @@ final class AngleTest extends TestCase
      */
     public function testValidUnits(): void
     {
-        $units = Angle::getUnitConverter()->getValidUnits();
+        $units = Angle::getUnitConverter()->getUnitSymbols();
 
         // Check it's an array
         $this->assertIsArray($units);

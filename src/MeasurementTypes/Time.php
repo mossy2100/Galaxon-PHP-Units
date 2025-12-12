@@ -82,7 +82,7 @@ class Time extends Measurement
     public static function getUnits(): array
     {
         return [
-            's'   => self::PREFIXES_METRIC,  // second
+            's'   => self::PREFIX_CODE_METRIC,  // second
             'min' => 0,  // minute
             'h'   => 0,  // hour
             'd'   => 0,  // day

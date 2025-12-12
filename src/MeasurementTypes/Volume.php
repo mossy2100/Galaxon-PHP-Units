@@ -20,8 +20,8 @@ class Volume extends Measurement
     public static function getUnits(): array
     {
         return [
-            'm3'    => self::PREFIXES_METRIC,  // cubic metre
-            'L'     => self::PREFIXES_METRIC,  // litre
+            'm3'    => self::PREFIX_CODE_METRIC,  // cubic metre
+            'L'     => self::PREFIX_CODE_METRIC,  // litre
             'in3'   => 0,  // cubic inch
             'ft3'   => 0,  // cubic foot
             'yd3'   => 0,  // cubic yard
@@ -29,7 +29,7 @@ class Volume extends Measurement
             'qt'    => 0,  // quart
             'pt'    => 0,  // pint
             'c'     => 0,  // cup
-            'fl oz' => 0,  // fluid ounce
+            'floz'  => 0,  // fluid ounce
             'tbsp'  => 0,  // tablespoon
             'tsp'   => 0,  // teaspoon
         ];
@@ -55,8 +55,8 @@ class Volume extends Measurement
             ['gal', 'in3', 231],
             ['qt', 'pt', 2],
             ['pt', 'c', 2],
-            ['c', 'fl oz', 8],
-            ['fl oz', 'tbsp', 2],
+            ['c', 'floz', 8],
+            ['floz', 'tbsp', 2],
             ['tbsp', 'tsp', 3]
         ];
     }

@@ -34,7 +34,7 @@ class Length extends Measurement
     public static function getUnits(): array
     {
         return [
-            'm'  => self::PREFIXES_METRIC,  // metre
+            'm'  => self::PREFIX_CODE_METRIC,  // metre
             'px' => 0,  // pixel
             'pt' => 0,  // point
             'in' => 0,  // inch

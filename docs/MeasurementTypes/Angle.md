@@ -23,7 +23,7 @@ Create an angle with a specified size and unit.
 - `$unit` (string) - The unit: `'rad'`, `'deg'`, `'grad'`, or `'turn'` (default: `'rad'`)
 
 **Throws:**
-- `ValueError` - If the quantity is non-finite (±∞ or NaN) or if the unit is invalid
+- `ValueError` - If the quantity is non-finite (±INF or NAN) or if the unit is invalid
 
 **Examples:**
 ```php
@@ -202,7 +202,7 @@ echo $diff->to('deg'); // 45.0
 public function mul(float $k): self
 ```
 
-Multiply angle by a scalar. Throws `ValueError` if the scalar is non-finite (±∞ or NaN).
+Multiply angle by a scalar. Throws `ValueError` if the scalar is non-finite (±INF or NAN).
 
 **Example:**
 ```php
@@ -315,7 +315,7 @@ echo $aWrapped->compare($bWrapped); // 0 (both normalized to 10°)
 public function equal(mixed $other): bool
 ```
 
-Check if two angles are equal within relative epsilon tolerance (`RAD_EPSILON` = 1e-9). Provided by the `Comparable` trait - delegates to `compare()`.
+Check if two angles are equal. Provided by the `Comparable` trait - delegates to `compare()`.
 
 Angles are not normalized before comparison, so use `wrap()` first if you need to compare angular positions rather than raw values.
 
@@ -323,7 +323,7 @@ Angles are not normalized before comparison, so use `wrap()` first if you need t
 - `$other` (mixed) - The value to compare with
 
 **Returns:**
-- `bool` - True if angles are equal within epsilon tolerance; false otherwise
+- `bool` - True if angles are exactly equal; false otherwise
 
 **Note:** Returns `false` gracefully for non-Angle types (doesn't throw).
 
