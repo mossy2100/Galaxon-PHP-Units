@@ -69,7 +69,7 @@ class Conversion implements Stringable
      *
      * @var float
      */
-    public float $errorScore {
+    public float $totalAbsoluteError {
         get => $this->multiplier->absoluteError + $this->offset->absoluteError;
     }
 
@@ -85,15 +85,15 @@ class Conversion implements Stringable
      *
      * @param string $initialUnit The initial unit (source).
      * @param string $finalUnit The final unit (destination).
-     * @param int|float|FloatWithError $multiplier The scale factor (cannot be 0).
-     * @param int|float|FloatWithError $offset The additive offset (default 0).
+     * @param float|FloatWithError $multiplier The scale factor (cannot be 0).
+     * @param float|FloatWithError $offset The additive offset (default 0).
      * @throws ValueError If the multiplier is zero.
      */
     public function __construct(
         string $initialUnit,
         string $finalUnit,
-        int|float|FloatWithError $multiplier,
-        int|float|FloatWithError $offset = 0
+        float|FloatWithError $multiplier,
+        float|FloatWithError $offset = 0
     ) {
         // Ensure multiplier is a FloatWithError.
         if (!$multiplier instanceof FloatWithError) {
@@ -124,10 +124,10 @@ class Conversion implements Stringable
     /**
      * Apply conversion to an input value.
      *
-     * @param int|float|FloatWithError $value The input value.
+     * @param float|FloatWithError $value The input value.
      * @return FloatWithError The result of the conversion.
      */
-    public function apply(int|float|FloatWithError $value): FloatWithError
+    public function apply(float|FloatWithError $value): FloatWithError
     {
         // Convert the value. y = mx + k
         return $this->multiplier->mul($value)->add($this->offset);
@@ -291,7 +291,7 @@ class Conversion implements Stringable
             $sign = $this->offset->value < 0 ? '-' : '+';
             $str .= " $sign " . abs($this->offset->value);
         }
-        $str .= " (error score: $this->errorScore)";
+        $str .= " (error score: $this->totalAbsoluteError)";
         return $str;
     }
 

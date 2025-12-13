@@ -38,7 +38,7 @@ class Unit
     /**
      * The prefix multiplier (e.g., 1000 for kilo, 0.001 for milli).
      */
-    private(set) int|float $prefixMultiplier;
+    private(set) float $prefixMultiplier;
 
     /**
      * The exponent (e.g., 2 for m², -1 for s⁻¹).
@@ -74,7 +74,7 @@ class Unit
     /**
      * The prefix multiplier raised to the exponent (e.g., 1000² = 1e6 for km²).
      */
-    public int|float $multiplier {
+    public float $multiplier {
         get {
             return $this->prefixMultiplier ** $this->exponent;
         }
@@ -94,10 +94,10 @@ class Unit
      *
      * @param string $derived The unit without prefix (e.g., 'm2', 's-1').
      * @param string $prefix The prefix symbol (e.g., 'k', 'm', 'G'), or empty string if none.
-     * @param int|float $prefixMultiplier The prefix multiplier (e.g., 1000 for kilo).
+     * @param float $prefixMultiplier The prefix multiplier (e.g., 1000 for kilo).
      * @throws ValueError If the derived unit format is invalid.
      */
-    public function __construct(string $derived, string $prefix = '', int|float $prefixMultiplier = 1)
+    public function __construct(string $derived, string $prefix = '', float $prefixMultiplier = 1)
     {
         // Validate the unit string.
         $unitValid = preg_match('/^(\p{L}+)(-?\d+)?$/u', $derived, $matches);
@@ -111,15 +111,15 @@ class Unit
         $base = $matches[1];
 
         // Get the exponent.
-        if (!isset($matches[2]) || $matches[2] === '') {
-            $exp = 1;
-        } else {
+        if (isset($matches[2])) {
             $exp = (int)$matches[2];
 
             // Validate the exponent.
             if ($exp < -9 || $exp === 0 || $exp === 1 || $exp > 9) {
                 throw new ValueError("Invalid exponent $exp. Must be in the range -9 to 9 and not equal to 0 or 1.");
             }
+        } else {
+            $exp = 1;
         }
 
         // Set properties.

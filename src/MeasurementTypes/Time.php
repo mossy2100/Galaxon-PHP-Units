@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Galaxon\Units\MeasurementTypes;
 
 use DateInterval;
-use Galaxon\Core\Numbers;
 use Galaxon\Units\Measurement;
 use Override;
 use TypeError;
@@ -100,7 +99,7 @@ class Time extends Measurement
      * the average length of a year in the Gregorian calendar. If you want, you can add or update conversions using the
      * `Time::getUnitConverter()->addConversion()` method.
      *
-     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: float, 3?: float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array
@@ -138,31 +137,32 @@ class Time extends Measurement
      * All parts must be non-negative.
      * If the Time is negative, set the $sign parameter to -1.
      *
-     * NB: This method doesn't include a parameter for weeks, as this may have been confusing and led to bugs.
+     * NB: This method doesn't include a parameter for weeks, as this could be confusing and lead to bugs.
      * Many date and time constructors don't include a parameter for weeks, and only have the 6 usual ones.
      * So, this design is following the "Principle of Least Surprise".
-     * If you need to create a Time from weeks, you can convert weeks to days, or use fromPartsArray() instead.
+     * If you need to create a Time from weeks, you can convert weeks to days, or use fromPartsArray() instead, which
+     * accepts a 'w' key.
      *
-     * @param int|float $years The number of years.
-     * @param int|float $months The number of months.
-     * @param int|float $days The number of days.
-     * @param int|float $hours The number of hours.
-     * @param int|float $minutes The number of minutes.
-     * @param int|float $seconds The number of seconds.
+     * @param float $years The number of years.
+     * @param float $months The number of months.
+     * @param float $days The number of days.
+     * @param float $hours The number of hours.
+     * @param float $minutes The number of minutes.
+     * @param float $seconds The number of seconds.
      * @param int $sign -1 if the Time is negative, 1 (or omitted) otherwise.
-     * @return self A new Time in seconds with a magnitude equal to the sum of the parts.
+     * @return static A new Time in seconds with a magnitude equal to the sum of the parts.
      * @throws TypeError If any of the values are not numbers.
      * @throws ValueError If any of the values are non-finite or negative.
      */
     public static function fromParts(
-        int|float $years = 0,
-        int|float $months = 0,
-        int|float $days = 0,
-        int|float $hours = 0,
-        int|float $minutes = 0,
-        int|float $seconds = 0,
+        float $years = 0,
+        float $months = 0,
+        float $days = 0,
+        float $hours = 0,
+        float $minutes = 0,
+        float $seconds = 0,
         int $sign = 1
-    ): self {
+    ): static {
         return self::fromPartsArray([
             'y'   => $years,
             'mo'  => $months,
@@ -187,14 +187,10 @@ class Time extends Measurement
      * @throws ValueError If any arguments are invalid.
      */
     #[Override]
-    public function formatParts(
-        string $smallestUnit = 's',
-        ?int $precision = null,
-        bool $showZeros = false
-    ): string {
+    public function formatParts(string $smallestUnit = 's', ?int $precision = null, bool $showZeros = false): string
+    {
         return parent::formatParts($smallestUnit, $precision, $showZeros);
     }
-
 
     // endregion
 
@@ -218,7 +214,7 @@ class Time extends Measurement
         // Prep.
         $partUnits = static::getPartUnits();
         $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
-        $parts = $this->toParts($smallestUnit, 0);  // DateInterval requires integer parts.
+        $parts = $this->toPartsArray($smallestUnit, 0);  // DateInterval requires integer parts.
         $spec = 'P';
         $labels = ['Y', 'M', 'W', 'D', 'H', 'M', 'S'];
         $timeSeparatorAdded = false;

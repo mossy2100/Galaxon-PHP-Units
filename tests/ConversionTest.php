@@ -108,7 +108,7 @@ class ConversionTest extends TestCase
         $conv = new Conversion('a', 'b', $multiplier, $offset);
 
         // Error score = multiplier error + offset error
-        $this->assertSame(0.11, $conv->errorScore);
+        $this->assertSame(0.11, $conv->totalAbsoluteError);
     }
 
     /**
@@ -119,7 +119,7 @@ class ConversionTest extends TestCase
         $conv = new Conversion('a', 'b', 2, 10);
 
         // Both are exact integers, so zero error
-        $this->assertSame(0.0, $conv->errorScore);
+        $this->assertSame(0.0, $conv->totalAbsoluteError);
     }
 
     // endregion

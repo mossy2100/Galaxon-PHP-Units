@@ -35,14 +35,12 @@ class UnitConverter
 {
     // region Constants
 
-    private const bool DEBUG = false;
-
     /**
      * Standard metric prefixes down to quecto (10^-30).
      *
      * Includes both standard symbols and alternatives (e.g., 'u' for micro).
      *
-     * @var array<string, int|float>
+     * @var array<string, float>
      */
     public const array PREFIXES_SMALL_METRIC = [
         'q' => 1e-30,  // quecto
@@ -63,7 +61,7 @@ class UnitConverter
     /**
      * Standard metric prefixes up to quetta (10^30).
      *
-     * @var array<string, int|float>
+     * @var array<string, float>
      */
     public const array PREFIXES_LARGE_METRIC = [
         'da' => 1e1,    // deca
@@ -83,7 +81,7 @@ class UnitConverter
     /**
      * Binary prefixes for memory measurements.
      *
-     * @var array<string, int|float>
+     * @var array<string, float>
      */
     public const array PREFIXES_BINARY = [
         'Ki' => 2 ** 10, // kibi
@@ -142,7 +140,7 @@ class UnitConverter
      * Each element is an array: [initUnit, finUnit, multiplier, offset?]
      * Preserved for re-initialization when units or prefixes change.
      *
-     * @var array<int, array{0: string, 1: string, 2: int|float, 3?: int|float}>
+     * @var array<int, array{0: string, 1: string, 2: float, 3?: float}>
      */
     private array $conversionDefinitions;
 
@@ -163,7 +161,7 @@ class UnitConverter
      * - Offsets (if present) must be numbers.
      *
      * @param array<string, int> $units Units (base and derived only) with their prefix set code.
-     * @param array<array{0: string, 1: string, 2: int|float, 3?: int|float}> $conversionDefinitions
+     * @param array<array{0: string, 1: string, 2: float, 3?: float}> $conversionDefinitions
      *      Conversion definitions.
      * @throws LogicException If any validation check fails.
      */
@@ -215,7 +213,7 @@ class UnitConverter
             }
 
             // Validate the optional offset (which can be negative).
-            if ($nItems === 4 && !Numbers::isNumber($convDefn[3])) {
+            if (isset($convDefn[3]) && !Numbers::isNumber($convDefn[3])) {
                 throw new LogicException('Offset in conversion must be omitted, or a number (int or float).');
             }
         }
@@ -225,9 +223,6 @@ class UnitConverter
 
         // Import the conversions.
         $this->resetConversions();
-
-        // DEBUG
-//        $this->completeMatrix();
     }
 
     // endregion
@@ -302,13 +297,6 @@ class UnitConverter
             $prefixedConversion = new Conversion($initialUnit, $finalUnit, $multiplier, $offset);
             $this->conversions[$initialUnit][$finalUnit] = $prefixedConversion;
 
-            // DEBUG
-            // @codeCoverageIgnoreStart
-            if (self::DEBUG) {
-                echo "New conversion from definition: $prefixedConversion\n";
-            }
-            // @codeCoverageIgnoreEnd
-
             // If either unit has a prefix, also store the conversion between derived units.
             // This is needed for the conversion generator algorithm.
             // Get the Unit objects.
@@ -331,13 +319,6 @@ class UnitConverter
 
                 // Store the derived unit conversion.
                 $this->conversions[$init][$fin] = $derivedConversion;
-
-                // DEBUG
-                // @codeCoverageIgnoreStart
-                if (self::DEBUG) {
-                    echo "New conversion from definition: $derivedConversion\n";
-                }
-                // @codeCoverageIgnoreEnd
             }
         }
     }
@@ -424,7 +405,7 @@ class UnitConverter
      * This can be overridden in the derived class.
      *
      * @param int $prefixSetCode Code indicating the prefix sets to include.
-     * @return array<string, int|float>
+     * @return array<string, float>
      */
     public static function getPrefixes(int $prefixSetCode = Measurement::PREFIX_CODE_ALL): array
     {
@@ -527,6 +508,35 @@ class UnitConverter
     }
 
     /**
+     * Private function to help us keep track of the best conversion found so far.
+     *
+     * @param string $initialUnit
+     * @param string $finalUnit
+     * @param Conversion $newConversion
+     * @param float $minErr The least total absolute error of all the Conversions found so far.
+     * @param ?array{initialUnit: string, finalUnit: string, newConversion: Conversion} $best Details of the best
+     * (least error) Conversion found so far.
+     * @return void
+     */
+    private function testNewConversion(
+        string $initialUnit,
+        string $finalUnit,
+        Conversion $newConversion,
+        float &$minErr,
+        ?array &$best
+    ): void {
+        // Let's see if we have a new best.
+        if ($newConversion->totalAbsoluteError < $minErr) {
+            $minErr = $newConversion->totalAbsoluteError;
+            $best = [
+                'initialUnit'   => $initialUnit,
+                'finalUnit'     => $finalUnit,
+                'newConversion' => $newConversion,
+            ];
+        }
+    }
+
+    /**
      * Generate the next best conversion by traversing the conversion graph.
      *
      * Uses a best-first search strategy to find new conversions by:
@@ -538,50 +548,17 @@ class UnitConverter
      *
      * @return bool True if a new conversion was found and added, false if none remain.
      */
-    private function generateNextConversion(): bool
+    private function findNextConversion(): bool
     {
-        $minErrScore = PHP_INT_MAX;
+        // Prep.
+        $minErr = PHP_FLOAT_MAX;
         $best = null;
         $units = array_keys($this->unitDefinitions);
-        $initialUnit = '';
-        $finalUnit = '';
-        $commonUnit = '';
-
-        // Test function. This will help us keep track of the best conversion found so far.
-        $testNewConversion = static function (
-            Conversion $conversion1,
-            ?Conversion $conversion2,
-            Conversion $newConversion,
-            string $operation
-        ) use (
-            &$initialUnit,
-            &$finalUnit,
-            &$commonUnit,
-            &$minErrScore,
-            &$best
-        ): bool {
-            // Let's see if we have a new best.
-            if ($newConversion->errorScore < $minErrScore) {
-                $minErrScore = $newConversion->errorScore;
-                $best = [
-                    'initialUnit'   => $initialUnit,
-                    'finalUnit'     => $finalUnit,
-                    'commonUnit'    => $commonUnit,
-                    'conversion1'   => $conversion1,
-                    'conversion2'   => $conversion2,
-                    'newConversion' => $newConversion,
-                    'operation'     => $operation,
-                    'errScore'      => $minErrScore,
-                ];
-                return true;
-            }
-            return false;
-        };
 
         // Iterate through all possible pairs of derived units.
         foreach ($units as $initialUnit) {
             foreach ($units as $finalUnit) {
-                // If this conversion is already known, continue.
+                // If we don't need this conversion, or it's already known, continue.
                 if ($initialUnit === $finalUnit || isset($this->conversions[$initialUnit][$finalUnit])) {
                     continue;
                 }
@@ -590,7 +567,7 @@ class UnitConverter
                 if (isset($this->conversions[$finalUnit][$initialUnit])) {
                     $conversion = $this->conversions[$finalUnit][$initialUnit];
                     $newConversion = $conversion->invert();
-                    $testNewConversion($conversion, null, $newConversion, 'inversion');
+                    $this->testNewConversion($initialUnit, $finalUnit, $newConversion, $minErr, $best);
                 }
 
                 // Look for a conversion opportunity via a common unit.
@@ -610,56 +587,35 @@ class UnitConverter
                     // Combine initial->common with common->final (sequential).
                     if ($initialToCommon !== null && $commonToFinal !== null) {
                         $newConversion = $initialToCommon->combineSequential($commonToFinal);
-                        $testNewConversion($initialToCommon, $commonToFinal, $newConversion, 'sequential combination');
+                        $this->testNewConversion($initialUnit, $finalUnit, $newConversion, $minErr, $best);
                     }
 
                     // Combine initial->common with final->common (convergent).
                     if ($initialToCommon !== null && $finalToCommon !== null) {
                         $newConversion = $initialToCommon->combineConvergent($finalToCommon);
-                        $testNewConversion($initialToCommon, $finalToCommon, $newConversion, 'convergent combination');
+                        $this->testNewConversion($initialUnit, $finalUnit, $newConversion, $minErr, $best);
                     }
 
                     // Combine common->initial with common->final (divergent).
                     if ($commonToInitial !== null && $commonToFinal !== null) {
                         $newConversion = $commonToInitial->combineDivergent($commonToFinal);
-                        $testNewConversion($commonToInitial, $commonToFinal, $newConversion, 'divergent combination');
+                        $this->testNewConversion($initialUnit, $finalUnit, $newConversion, $minErr, $best);
                     }
 
                     // Combine common->initial with final->common (opposite).
                     if ($commonToInitial !== null && $finalToCommon !== null) {
                         $newConversion = $commonToInitial->combineOpposite($finalToCommon);
-                        $testNewConversion($commonToInitial, $finalToCommon, $newConversion, 'opposite combination');
+                        $this->testNewConversion($initialUnit, $finalUnit, $newConversion, $minErr, $best);
                     }
                 }
             }
         }
 
         if ($best !== null) {
-            // Store the best conversion we found for this scan.
+            // Remember the best conversion we found for this scan.
             $this->conversions[$best['initialUnit']][$best['finalUnit']] = $best['newConversion'];
 
-            // *********************************************************************************************************
-            // DEBUGGING
-            // @codeCoverageIgnoreStart
-            if (self::DEBUG) {
-                $description = "\nNew conversion for {$best['initialUnit']} to {$best['finalUnit']} found by " .
-                               "{$best['operation']}:\n";
-                if ($best['operation'] === 'inversion') {
-                    $description .=
-                        " Original conversion: {$best['conversion1']}\n" .
-                        "      New conversion: {$best['newConversion']}\n";
-                } else {
-                    $description .=
-                        "        Conversion 1: {$best['conversion1']}\n" .
-                        "        Conversion 2: {$best['conversion2']}\n" .
-                        "      New conversion: {$best['newConversion']}\n";
-                }
-                $description .= "      Absolute error: {$best['errScore']}\n";
-                echo $description;
-            }
-            // @codeCoverageIgnoreEnd
-            // *********************************************************************************************************
-
+            // Report that we found one.
             return true;
         }
 
@@ -720,17 +676,10 @@ class UnitConverter
             // Check if the conversion between derived units is already known.
             $conversion = $this->conversions[$init][$fin];
         } else {
-            // DEBUG
-            // @codeCoverageIgnoreStart
-            if (self::DEBUG) {
-                echo "SEARCH FOR CONVERSION BETWEEN '$init' AND '$fin'\n";
-            }
-            // @codeCoverageIgnoreEnd
-
             // Keep generating new conversions until we find the conversion between the derived units, or we run
             // out of options.
             do {
-                $result = $this->generateNextConversion();
+                $result = $this->findNextConversion();
             } while (!isset($this->conversions[$init][$fin]) && $result);
 
             // If we didn't find the conversion, throw an exception.
@@ -829,23 +778,19 @@ class UnitConverter
      *
      * @param string $initialUnit The initial unit symbol. Can be a prefixed, derived, or base unit.
      * @param string $finalUnit The final unit symbol. Can be a prefixed, derived, or base unit.
-     * @param int|float $multiplier The scale factor (cannot be 0).
-     * @param int|float $offset The additive offset (default 0).
+     * @param float $multiplier The scale factor (cannot be 0).
+     * @param float $offset The additive offset (default 0).
      * @return void
      */
-    public function addConversion(
-        string $initialUnit,
-        string $finalUnit,
-        int|float $multiplier,
-        int|float $offset = 0
-    ): void {
+    public function addConversion(string $initialUnit, string $finalUnit, float $multiplier, float $offset = 0): void
+    {
         // Ensure multiplier is not zero.
         if (Numbers::equal($multiplier, 0)) {
             throw new ValueError('Multiplier cannot be zero.');
         }
 
         // Find if this conversion already exists.
-        /** @var null|string $key */
+        /** @var null|int $key */
         $key = array_find_key(
             $this->conversionDefinitions,
             static fn ($conversion) => $conversion[0] === $initialUnit && $conversion[1] === $finalUnit
@@ -854,7 +799,7 @@ class UnitConverter
         if ($key !== null) {
             // Update existing conversion.
             $this->conversionDefinitions[$key][2] = $multiplier;
-            $this->conversionDefinitions[$key][3] = $offset;
+            $this->conversionDefinitions[$key][3] = $offset; // @phpstan-ignore assign.propertyType
         } else {
             // Add new conversion.
             $this->conversionDefinitions[] = [$initialUnit, $finalUnit, $multiplier, $offset];
@@ -900,7 +845,7 @@ class UnitConverter
     public function completeMatrix(): void
     {
         do {
-            $result = $this->generateNextConversion();
+            $result = $this->findNextConversion();
         } while ($result);
     }
 

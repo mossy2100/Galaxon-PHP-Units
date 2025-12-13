@@ -102,12 +102,12 @@ abstract class Measurement implements Stringable
      * We want to prevent that so the "new static" expressions won't break.
      * If you want to override the constructor, create a factory method instead.
      *
-     * @param int|float $value The numeric value in the given unit.
+     * @param float $value The numeric value in the given unit.
      * @param string $unit The unit (e.g., 'kg', 'mm', 'hr').
      * @throws ValueError If the value is non-finite (±INF or NAN) or if the unit is invalid.
      * @throws LogicException If the derived class is not properly configured.
      */
-    final public function __construct(int|float $value, string $unit)
+    final public function __construct(float $value, string $unit)
     {
         // Check the value is finite.
         if (!is_finite($value)) {
@@ -144,7 +144,7 @@ abstract class Measurement implements Stringable
      *   Angle::parse("90deg")       // Angle(90.0, 'deg')
      *   Time::parse("1.5e3 ms")     // Time(1500.0, 'ms')
      */
-    public static function parse(string $value): self
+    public static function parse(string $value): static
     {
         // Prepare an error message with the original value.
         $class = new ReflectionClass(static::class)->getShortName();
@@ -261,12 +261,12 @@ abstract class Measurement implements Stringable
      * Check the $this and $other objects have the same type, and get the value of the $other Measurement in the same
      * unit as the $this one. Return the value.
      *
-     * @param self $other Measurement The other measurement to compare with.
-     * @return float|int The value of the other measurement in the same unit as this one.
+     * @param mixed $other The other measurement to compare with.
+     * @return float The value of the other measurement in the same unit as this one.
      * @throws LogicException If no conversion path exists between the units.
      * @throws TypeError If the other Measurement has a different type.
      */
-    private function preCompare(self $other): float|int
+    private function preCompare(mixed $other): float
     {
         // Check the two measurements have the same types.
         if (!Types::same($this, $other)) {
@@ -336,7 +336,7 @@ abstract class Measurement implements Stringable
      *
      * Automatically converts units before adding.
      *
-     * @param self|int|float $otherOrValue Another Measurement or a numeric value.
+     * @param self|float $otherOrValue Another Measurement or a numeric value.
      * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static A new Measurement containing the sum in this measurement's unit.
      * @throws TypeError If argument types are incorrect.
@@ -349,7 +349,7 @@ abstract class Measurement implements Stringable
      *   $sum = $a->add($b);           // Length(2100, 'm')
      *   $sum2 = $a->add(50, 'cm');    // Length(100.5, 'm')
      */
-    public function add(self|int|float $otherOrValue, ?string $otherUnit = null): static
+    public function add(self|float $otherOrValue, ?string $otherUnit = null): static
     {
         // Validate and transform the arguments.
         $other = self::checkAddSubArgs($otherOrValue, $otherUnit);
@@ -372,7 +372,7 @@ abstract class Measurement implements Stringable
      *
      * Automatically converts units before subtracting.
      *
-     * @param self|int|float $otherOrValue Another Measurement or a numeric value.
+     * @param self|float $otherOrValue Another Measurement or a numeric value.
      * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static A new Measurement containing the difference in this measurement's unit.
      * @throws TypeError If argument types are incorrect.
@@ -384,7 +384,7 @@ abstract class Measurement implements Stringable
      *   $b = new Length(2, 'km');
      *   $diff = $a->sub($b);          // Length(-1900, 'm')
      */
-    public function sub(self|int|float $otherOrValue, ?string $otherUnit = null): static
+    public function sub(self|float $otherOrValue, ?string $otherUnit = null): static
     {
         // Validate and transform the arguments.
         $other = self::checkAddSubArgs($otherOrValue, $otherUnit);
@@ -509,14 +509,14 @@ abstract class Measurement implements Stringable
      * Each conversion is an array with 3 or 4 elements:
      * - [0] string: Initial unit symbol
      * - [1] string: Final unit symbol
-     * - [2] int|float: Multiplier (must be non-zero)
-     * - [3] int|float: Optional offset (for affine conversions like temperature)
+     * - [2] float: Multiplier (must be non-zero)
+     * - [3] float: Optional offset (for affine conversions like temperature)
      *
      * Only direct conversions need to be specified; the system will automatically
      * find paths for indirect conversions (e.g., if you have m→ft and ft→in, it
      * can automatically convert m→in).
      *
-     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: float, 3?: float}> Array of conversion definitions.
      *
      * @example
      *   return [
@@ -662,19 +662,21 @@ abstract class Measurement implements Stringable
      */
     protected static function validateAndTransformPartUnits(): array
     {
-        // Ensure we have some part units.
+        // Get the part units array. This should be overridden in the derived class and return a non-empty array.
         $partUnits = static::getPartUnits();
+
+        // Ensure we have some part units.
         if (empty($partUnits)) {
             throw new LogicException(
-                'The derived Measurement class must define the part units (with optional alternative ' .
-                'symbols) by overriding getPartUnits(), and returning an array of valid units.'
+                'The derived Measurement class must define the part units by overriding getPartUnits(), so ' .
+                'it returns an array of valid units (with optional alternative symbols).'
             );
         }
 
         // Create a new array to contain the map of units to symbols.
         $symbols = [];
 
-        // Ensure all part units are valid base/derived units.
+        // Ensure all part units are valid units.
         $validUnits = array_keys(static::getUnits());
         foreach ($partUnits as $partUnit => $symbol) {
             // If the key is an integer, the unit and the symbol are the same.
@@ -684,7 +686,7 @@ abstract class Measurement implements Stringable
 
             // Ensure the unit is valid.
             if (!in_array($partUnit, $validUnits, true)) {
-                throw new LogicException("Invalid unit: '$partUnit'.");
+                throw new LogicException("Invalid part unit: '$partUnit'.");
             }
 
             // Ensure the symbol is a non-empty string.
@@ -738,7 +740,7 @@ abstract class Measurement implements Stringable
 
         // Initialize the Measurement to 0, with the unit set to the smallest unit.
         $smallestUnitIndex = array_key_last($partUnits);
-        $smallestUnit = $partUnits[$smallestUnitIndex];
+        $smallestUnit = $partUnits[$smallestUnitIndex]; // @phpstan-ignore offsetAccess.notFound
         $t = new (self::getClassName())(0, $smallestUnit);
 
         // Check each of the possible units.
@@ -772,7 +774,7 @@ abstract class Measurement implements Stringable
      * @throws ValueError If any arguments are invalid.
      * @throws LogicException If getPartUnits() has not been overridden properly.
      */
-    public function toParts(string $smallestUnit, ?int $precision = null): array
+    public function toPartsArray(string $smallestUnit, ?int $precision = null): array
     {
         // Validate arguments.
         static::validateSmallestUnit($smallestUnit);
@@ -844,11 +846,8 @@ abstract class Measurement implements Stringable
      * @return string Formatted string.
      * @throws ValueError If any arguments are invalid.
      */
-    public function formatParts(
-        string $smallestUnit,
-        ?int $precision = null,
-        bool $showZeros = false
-    ): string {
+    public function formatParts(string $smallestUnit, ?int $precision = null, bool $showZeros = false): string
+    {
         // Validate arguments.
         self::validateSmallestUnit($smallestUnit);
         self::validatePrecision($precision);
@@ -858,7 +857,7 @@ abstract class Measurement implements Stringable
         $partUnits = array_keys($symbols);
 
         // Prep.
-        $parts = $this->toParts($smallestUnit, $precision);
+        $parts = $this->toPartsArray($smallestUnit, $precision);
         $smallestUnitIndex = (int)array_search($smallestUnit, $partUnits, true);
         $result = [];
         $hasNonZero = false;
@@ -882,11 +881,9 @@ abstract class Measurement implements Stringable
             }
 
             // Format the value with precision for the smallest unit.
-            if ($i === $smallestUnitIndex && $precision !== null) {
-                $formattedValue = number_format($value, $precision, '.', '');
-            } else {
-                $formattedValue = (string)$value;
-            }
+            $formattedValue = $i === $smallestUnitIndex && $precision !== null
+                ? number_format($value, $precision, '.', '')
+                : (string)$value;
 
             $result[] = $formattedValue . $symbols[$unit];
         }
@@ -927,7 +924,7 @@ abstract class Measurement implements Stringable
     public static function getUnitConverter(): UnitConverter
     {
         // Get the name of the calling class.
-        /** @var string $className */
+        /** @var class-string $className */
         $className = self::getClassName();
 
         // Check the unit converter for the derived class has been validated and created.
@@ -956,14 +953,14 @@ abstract class Measurement implements Stringable
      * - Single Measurement argument
      * - Separate value and unit arguments
      *
-     * @param self|int|float $otherOrValue Another Measurement or a numeric value.
+     * @param self|float $otherOrValue Another Measurement or a numeric value.
      * @param ?string $otherUnit The unit if providing a numeric value.
      * @return static The validated Measurement to add or subtract.
      * @throws TypeError If argument types are incorrect.
      * @throws ValueError If value is non-finite or unit is invalid.
      * @throws LogicException If the derived class is not properly configured.
      */
-    protected static function checkAddSubArgs(self|int|float $otherOrValue, ?string $otherUnit = null): static
+    protected static function checkAddSubArgs(self|float $otherOrValue, ?string $otherUnit = null): static
     {
         // One-parameter version.
         if ($otherOrValue instanceof static && $otherUnit === null) {
@@ -973,7 +970,7 @@ abstract class Measurement implements Stringable
         // Two-parameter version.
         if (Numbers::isNumber($otherOrValue) && is_string($otherUnit)) {
             // This will throw if the value is non-finite or the unit is invalid.
-            /** @var int|float $otherOrValue */
+            /** @var float $otherOrValue */
             return new static($otherOrValue, $otherUnit);
         }
 

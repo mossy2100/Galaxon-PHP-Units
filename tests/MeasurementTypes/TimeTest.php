@@ -136,7 +136,7 @@ final class TimeTest extends TestCase
         $parts = ['s' => 'not a number'];
 
         $this->expectException(TypeError::class);
-        Time::fromPartsArray($parts);
+        Time::fromPartsArray($parts); // @phpstan-ignore argument.type
     }
 
     /**
@@ -336,7 +336,7 @@ final class TimeTest extends TestCase
 
         $this->expectException(ValueError::class);
         $this->expectExceptionMessage('Must be null or a non-negative integer');
-        $time->toParts('s', -1);
+        $time->toPartsArray('s', -1);
     }
 
     /**
@@ -359,7 +359,7 @@ final class TimeTest extends TestCase
     public function testToPartsSeconds(): void
     {
         $time = new Time(3661.5, 's');
-        $parts = $time->toParts('s');
+        $parts = $time->toPartsArray('s');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -377,7 +377,7 @@ final class TimeTest extends TestCase
     public function testToPartsMinutes(): void
     {
         $time = new Time(3661, 's');
-        $parts = $time->toParts('min');
+        $parts = $time->toPartsArray('min');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -394,7 +394,7 @@ final class TimeTest extends TestCase
     public function testToPartsHours(): void
     {
         $time = new Time(90000, 's');  // 25 hours
-        $parts = $time->toParts('h');
+        $parts = $time->toPartsArray('h');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -410,7 +410,7 @@ final class TimeTest extends TestCase
     public function testToPartsDays(): void
     {
         $time = new Time(100000, 's');  // ~1.157 days
-        $parts = $time->toParts('d');
+        $parts = $time->toPartsArray('d');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -425,7 +425,7 @@ final class TimeTest extends TestCase
     public function testToPartsWeeks(): void
     {
         $time = new Time(1209600, 's');  // 14 days = 2 weeks
-        $parts = $time->toParts('w');
+        $parts = $time->toPartsArray('w');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -439,7 +439,7 @@ final class TimeTest extends TestCase
     public function testToPartsMonths(): void
     {
         $time = new Time(5259487.5, 's');  // ~2 months
-        $parts = $time->toParts('mo');
+        $parts = $time->toPartsArray('mo');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -452,7 +452,7 @@ final class TimeTest extends TestCase
     public function testToPartsYears(): void
     {
         $time = new Time(63113904, 's');  // ~2 years
-        $parts = $time->toParts('y');
+        $parts = $time->toPartsArray('y');
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEqualsWithDelta(2, $parts['y'], 0.01);
@@ -464,7 +464,7 @@ final class TimeTest extends TestCase
     public function testToPartsNegative(): void
     {
         $time = new Time(-3661, 's');
-        $parts = $time->toParts('s');
+        $parts = $time->toPartsArray('s');
 
         $this->assertEquals(-1, $parts['sign']);
         $this->assertEquals(1, $parts['h']);
@@ -478,7 +478,7 @@ final class TimeTest extends TestCase
     public function testToPartsZero(): void
     {
         $time = new Time(0, 's');
-        $parts = $time->toParts('s');
+        $parts = $time->toPartsArray('s');
 
         // Sign is 1 for zero value (Numbers::sign(0, false) returns 1)
         $this->assertEquals(1, $parts['sign']);
@@ -497,7 +497,7 @@ final class TimeTest extends TestCase
     public function testToPartsWithPrecision(): void
     {
         $time = new Time(3661.56789, 's');
-        $parts = $time->toParts('s', 2);
+        $parts = $time->toPartsArray('s', 2);
 
         $this->assertEquals(1, $parts['h']);
         $this->assertEquals(1, $parts['min']);
@@ -511,7 +511,7 @@ final class TimeTest extends TestCase
     {
         $time = new Time(100, 's');
         $this->expectException(ValueError::class);
-        $time->toParts('invalid');
+        $time->toPartsArray('invalid');
     }
 
     /**
@@ -522,7 +522,7 @@ final class TimeTest extends TestCase
         // 1 year + 2 months + 3 days + 4 hours + 5 minutes + 6.789 seconds
         $seconds = 31557600 + (2 * 2629743.75) + (3 * 86400) + (4 * 3600) + (5 * 60) + 6.789;
         $time = new Time($seconds, 's');
-        $parts = $time->toParts('s', 3);
+        $parts = $time->toPartsArray('s', 3);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(1, $parts['y']);
@@ -542,7 +542,7 @@ final class TimeTest extends TestCase
     {
         // 59.999 seconds with precision 0 should round to 60, then carry to 1 minute
         $time = new Time(59.999, 's');
-        $parts = $time->toParts('s', 0);
+        $parts = $time->toPartsArray('s', 0);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -563,7 +563,7 @@ final class TimeTest extends TestCase
     {
         // 59 minutes 59.999 seconds with precision on minutes
         $time = new Time(3599.999, 's');
-        $parts = $time->toParts('min', 0);
+        $parts = $time->toPartsArray('min', 0);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -583,7 +583,7 @@ final class TimeTest extends TestCase
     {
         // 23 hours 59 minutes 59.999 seconds with precision on hours
         $time = new Time(86399.999, 's');
-        $parts = $time->toParts('h', 0);
+        $parts = $time->toPartsArray('h', 0);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -603,7 +603,7 @@ final class TimeTest extends TestCase
         // 1 hour, 59 minutes, 59.999 seconds with precision 0 on seconds
         // Should cascade: 60s -> 1min, then 60min -> 1hour
         $time = new Time(7199.999, 's');
-        $parts = $time->toParts('s', 0);
+        $parts = $time->toPartsArray('s', 0);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);
@@ -623,7 +623,7 @@ final class TimeTest extends TestCase
     public function testToPartsNoCarryWithoutPrecision(): void
     {
         $time = new Time(59.999, 's');
-        $parts = $time->toParts('s', null);
+        $parts = $time->toPartsArray('s', null);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['min']);
@@ -640,7 +640,7 @@ final class TimeTest extends TestCase
         // 6 days, 23 hours, 59 minutes, 59.999 seconds with precision on days
         // Should round to 7 days and carry to 1 week
         $time = new Time(604799.999, 's');
-        $parts = $time->toParts('d', 0);
+        $parts = $time->toPartsArray('d', 0);
 
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['y']);

@@ -38,7 +38,7 @@ class Volume extends Measurement
     /**
      * Get the conversions for Volume measurements.
      *
-     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: float, 3?: float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array

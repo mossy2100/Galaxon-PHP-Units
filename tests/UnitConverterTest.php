@@ -95,7 +95,7 @@ class UnitConverterTest extends TestCase
         // Force an integer key by using array union.
         $units = [0 => Measurement::PREFIX_CODE_METRIC];
 
-        new UnitConverter($units, []);
+        new UnitConverter($units, []); // @phpstan-ignore argument.type
     }
 
     /**
@@ -104,7 +104,7 @@ class UnitConverterTest extends TestCase
     public function testConstructorThrowsForNonIntegerPrefixSetCode(): void
     {
         $this->expectException(LogicException::class);
-        new UnitConverter(['m' => 'invalid'], []);
+        new UnitConverter(['m' => 'invalid'], []); // @phpstan-ignore argument.type
     }
 
     /**
@@ -174,7 +174,7 @@ class UnitConverterTest extends TestCase
 
         new UnitConverter(
             ['m' => 0, 'ft' => 0],
-            [
+            [ // @phpstan-ignore argument.type
                 ['m', 'ft'],  // Only 2 elements.
             ]
         );
@@ -206,7 +206,7 @@ class UnitConverterTest extends TestCase
 
         new UnitConverter(
             ['m' => 0, 'ft' => 0],
-            [
+            [ // @phpstan-ignore argument.type
                 [123, 'ft', 3.28084],
             ]
         );
@@ -238,7 +238,7 @@ class UnitConverterTest extends TestCase
 
         new UnitConverter(
             ['m' => 0, 'ft' => 0],
-            [
+            [ // @phpstan-ignore argument.type
                 ['m', 456, 3.28084],
             ]
         );
@@ -270,7 +270,7 @@ class UnitConverterTest extends TestCase
 
         new UnitConverter(
             ['m' => 0, 'ft' => 0],
-            [
+            [ // @phpstan-ignore argument.type
                 ['m', 'ft', 'three'],
             ]
         );
@@ -302,7 +302,7 @@ class UnitConverterTest extends TestCase
 
         new UnitConverter(
             ['m' => 0, 'ft' => 0],
-            [
+            [ // @phpstan-ignore argument.type
                 ['m', 'ft', 3.28084, 'zero'],
             ]
         );
@@ -668,14 +668,12 @@ class UnitConverterTest extends TestCase
      */
     public function testCheckUnitIsValidPassesForBaseUnit(): void
     {
-        $converter = $this->createSimpleConverter();
+        $this->expectNotToPerformAssertions();
 
-        // Should not throw.
+        $converter = $this->createSimpleConverter();
         $converter->checkIsValidUnitSymbol('m');
         $converter->checkIsValidUnitSymbol('ft');
         $converter->checkIsValidUnitSymbol('in');
-
-        $this->assertTrue(true);  // If we get here, no exception was thrown.
     }
 
     /**
@@ -683,14 +681,12 @@ class UnitConverterTest extends TestCase
      */
     public function testCheckUnitIsValidPassesForPrefixedUnit(): void
     {
-        $converter = $this->createSimpleConverter();
+        $this->expectNotToPerformAssertions();
 
-        // Should not throw.
+        $converter = $this->createSimpleConverter();
         $converter->checkIsValidUnitSymbol('km');
         $converter->checkIsValidUnitSymbol('cm');
         $converter->checkIsValidUnitSymbol('mm');
-
-        $this->assertTrue(true);
     }
 
     /**

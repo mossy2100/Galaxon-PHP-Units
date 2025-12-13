@@ -90,7 +90,7 @@ final class AngleTest extends TestCase
     public function testPartsRoundtripAndCarry(): void
     {
         $a = Angle::fromParts(12, 34, 56);
-        $parts = $a->toParts('arcsec');
+        $parts = $a->toPartsArray('arcsec');
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(12, $parts['deg']);
         $this->assertEquals(34, $parts['arcmin']);
@@ -98,7 +98,7 @@ final class AngleTest extends TestCase
 
         // Verify floating-point precision at seconds and minutes boundaries.
         $b = new Angle(29.999999999, 'deg');
-        $parts2 = $b->toParts('arcsec');
+        $parts2 = $b->toPartsArray('arcsec');
         $this->assertEquals(1, $parts2['sign']);
         $this->assertEquals(29, $parts2['deg']);
         $this->assertEquals(59, $parts2['arcmin']);
@@ -106,14 +106,14 @@ final class AngleTest extends TestCase
 
         // Verify floating-point precision at minutes boundary.
         $b = new Angle(29.999999999, 'deg');
-        $parts3 = $b->toParts('arcmin');
+        $parts3 = $b->toPartsArray('arcmin');
         $this->assertEquals(1, $parts3['sign']);
         $this->assertEquals(29, $parts3['deg']);
         $this->assertFloatEquals(59.99999994, $parts3['arcmin']);
 
         // Test that invalid smallest unit throws ValueError.
         $this->expectException(ValueError::class);
-        $x = $b->toParts('invalid');
+        $x = $b->toPartsArray('invalid');
     }
 
     /**
@@ -125,7 +125,7 @@ final class AngleTest extends TestCase
     public function testToPartsWithDegreesOnly(): void
     {
         $a = new Angle(45.5, 'deg');
-        $parts = $a->toParts('deg');
+        $parts = $a->toPartsArray('deg');
         $this->assertEquals(1, $parts['sign']);
         $this->assertFloatEquals(45.5, $parts['deg']);
     }
@@ -141,14 +141,14 @@ final class AngleTest extends TestCase
         $a = Angle::fromParts(12, 34, 56, -1);
 
         // Test arcseconds
-        $parts = $a->toParts('arcsec');
+        $parts = $a->toPartsArray('arcsec');
         $this->assertEquals(-1, $parts['sign']);
         $this->assertEquals(12, $parts['deg']);
         $this->assertEquals(34, $parts['arcmin']);
         $this->assertEquals(56, $parts['arcsec']);
 
         // Test arcminutes
-        $parts2 = $a->toParts('arcmin');
+        $parts2 = $a->toPartsArray('arcmin');
         $this->assertEquals(-1, $parts2['sign']);
         $this->assertEquals(12, $parts2['deg']);
         $this->assertFloatEquals(34.933333, $parts2['arcmin'], 1e-6);
@@ -163,7 +163,7 @@ final class AngleTest extends TestCase
     public function testToPartsWithZeroAngle(): void
     {
         $a = new Angle(0, 'deg');
-        $parts = $a->toParts('arcsec');
+        $parts = $a->toPartsArray('arcsec');
         $this->assertEquals(1, $parts['sign']);
         $this->assertEquals(0, $parts['deg']);
         $this->assertEquals(0, $parts['arcmin']);
@@ -845,7 +845,7 @@ final class AngleTest extends TestCase
         $units = Angle::getUnitConverter()->getUnitSymbols();
 
         // Check it's an array
-        $this->assertIsArray($units);
+        $this->assertIsArray($units); // @phpstan-ignore method.alreadyNarrowedType
 
         // Check expected units are present
         $expectedUnits = ['rad', 'deg', 'arcmin', 'arcsec', 'grad', 'turn'];

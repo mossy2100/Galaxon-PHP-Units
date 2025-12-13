@@ -936,12 +936,10 @@ final class MeasurementTest extends TestCase
      */
     public function testValidatePrecisionAcceptsNull(): void
     {
+        $this->expectNotToPerformAssertions();
+
         $method = new ReflectionMethod(Length::class, 'validatePrecision');
-
-        // Should not throw.
         $method->invoke(null, null);
-
-        $this->assertTrue(true);
     }
 
     /**
@@ -949,12 +947,10 @@ final class MeasurementTest extends TestCase
      */
     public function testValidatePrecisionAcceptsZero(): void
     {
+        $this->expectNotToPerformAssertions();
+
         $method = new ReflectionMethod(Length::class, 'validatePrecision');
-
-        // Should not throw.
         $method->invoke(null, 0);
-
-        $this->assertTrue(true);
     }
 
     /**
@@ -962,12 +958,10 @@ final class MeasurementTest extends TestCase
      */
     public function testValidatePrecisionAcceptsPositive(): void
     {
+        $this->expectNotToPerformAssertions();
+
         $method = new ReflectionMethod(Length::class, 'validatePrecision');
-
-        // Should not throw.
         $method->invoke(null, 5);
-
-        $this->assertTrue(true);
     }
 
     /**
@@ -1015,7 +1009,7 @@ final class MeasurementTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('must define the part units');
 
-        $length->toParts('m');
+        $length->toPartsArray('m');
     }
 
     /**
@@ -1024,7 +1018,7 @@ final class MeasurementTest extends TestCase
     public function testValidateAndTransformPartUnitsThrowsForInvalidPartUnit(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage("Invalid unit: 'invalid'");
+        $this->expectExceptionMessage("Invalid part unit: 'invalid'");
 
         Badness::fromPartsArray(['foo' => 10]);
     }

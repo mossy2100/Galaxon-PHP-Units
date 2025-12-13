@@ -63,10 +63,10 @@ class FloatWithError implements Stringable
     /**
      * Constructor.
      *
-     * @param int|float $value The numeric value.
+     * @param float $value The numeric value.
      * @param ?float $error The absolute error. If null, estimated from float precision.
      */
-    public function __construct(int|float $value, ?float $error = null)
+    public function __construct(float $value, ?float $error = null)
     {
         // Convert value to float.
         $value = (float)$value;
@@ -91,10 +91,10 @@ class FloatWithError implements Stringable
      *
      * Error propagation: absolute errors add.
      *
-     * @param int|float|self $other The number to add.
+     * @param float|self $other The number to add.
      * @return self A new FloatWithError with the sum and propagated error.
      */
-    public function add(int|float|self $other): self
+    public function add(float|self $other): self
     {
         // Convert other to FloatWithError.
         if (!$other instanceof self) {
@@ -120,10 +120,10 @@ class FloatWithError implements Stringable
      *
      * Error propagation: absolute errors add.
      *
-     * @param int|float|self $other The number to subtract.
+     * @param float|self $other The number to subtract.
      * @return self A new FloatWithError with the difference and propagated error.
      */
-    public function sub(int|float|self $other): self
+    public function sub(float|self $other): self
     {
         // Convert other to FloatWithError.
         if (!$other instanceof self) {
@@ -161,10 +161,10 @@ class FloatWithError implements Stringable
      *
      * Error propagation: relative errors add.
      *
-     * @param int|float|self $other The number to multiply by.
+     * @param float|self $other The number to multiply by.
      * @return self A new FloatWithError with the product and propagated error.
      */
-    public function mul(int|float|self $other): self
+    public function mul(float|self $other): self
     {
         // Convert other to FloatWithError.
         if (!$other instanceof self) {
@@ -191,11 +191,11 @@ class FloatWithError implements Stringable
      *
      * Error propagation: relative errors add.
      *
-     * @param int|float|self $other The divisor.
+     * @param float|self $other The divisor.
      * @return self A new FloatWithError with the quotient and propagated error.
      * @throws DivisionByZeroError If attempting to divide by zero.
      */
-    public function div(int|float|self $other): self
+    public function div(float|self $other): self
     {
         // Convert other to FloatWithError.
         if (!$other instanceof self) {

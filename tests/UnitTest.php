@@ -26,7 +26,7 @@ final class UnitTest extends TestCase
 
         $this->assertSame('m', $unit->base);
         $this->assertSame('', $unit->prefix);
-        $this->assertSame(1, $unit->prefixMultiplier);
+        $this->assertSame(1.0, $unit->prefixMultiplier);
         $this->assertSame(1, $unit->exponent);
     }
 
@@ -39,7 +39,7 @@ final class UnitTest extends TestCase
 
         $this->assertSame('m', $unit->base);
         $this->assertSame('k', $unit->prefix);
-        $this->assertSame(1000, $unit->prefixMultiplier);
+        $this->assertSame(1000.0, $unit->prefixMultiplier);
         $this->assertSame(1, $unit->exponent);
     }
 
@@ -74,7 +74,7 @@ final class UnitTest extends TestCase
 
         $this->assertSame('m', $unit->base);
         $this->assertSame('k', $unit->prefix);
-        $this->assertSame(1000, $unit->prefixMultiplier);
+        $this->assertSame(1000.0, $unit->prefixMultiplier);
         $this->assertSame(2, $unit->exponent);
     }
 
@@ -194,7 +194,7 @@ final class UnitTest extends TestCase
     {
         $unit = new Unit('m');
 
-        $this->assertSame(1, $unit->multiplier);
+        $this->assertSame(1.0, $unit->multiplier);
     }
 
     /**
@@ -205,7 +205,7 @@ final class UnitTest extends TestCase
         $unit = new Unit('m', 'k', 1000);
 
         // 1000^1 = 1000
-        $this->assertSame(1000, $unit->multiplier);
+        $this->assertSame(1000.0, $unit->multiplier);
     }
 
     /**
@@ -216,7 +216,7 @@ final class UnitTest extends TestCase
         $unit = new Unit('m2', 'k', 1000);
 
         // 1000^2 = 1,000,000
-        $this->assertSame(1000000, $unit->multiplier);
+        $this->assertSame(1e6, $unit->multiplier);
     }
 
     /**

@@ -38,10 +38,10 @@ class Angle extends Measurement
      * If valid, the angle is returned; otherwise, an exception is thrown.
      *
      * @param string $value The string to parse.
-     * @return Measurement A new Angle equivalent to the provided string.
+     * @return static A new Angle equivalent to the provided string.
      * @throws ValueError If the string does not represent a valid angle.
      */
-    public static function parse(string $value): Measurement
+    public static function parse(string $value): static
     {
         try {
             // Try to parse the angle using Measurement::parse().
@@ -102,7 +102,7 @@ class Angle extends Measurement
     /**
      * Get the conversions for Angle measurements.
      *
-     * @return array<array{0: string, 1: string, 2: int|float, 3?: int|float}> Array of conversion definitions.
+     * @return array<array{0: string, 1: string, 2: float, 3?: float}> Array of conversion definitions.
      */
     #[Override]
     public static function getConversions(): array
@@ -139,20 +139,16 @@ class Angle extends Measurement
      * All parts must be non-negative.
      * If the Angle is negative, set the $sign parameter to -1.
      *
-     * @param int|float $degrees The number of degrees.
-     * @param int|float $arcmin The number of arcminutes.
-     * @param int|float $arcsec The number of arcseconds.
+     * @param float $degrees The number of degrees.
+     * @param float $arcmin The number of arcminutes.
+     * @param float $arcsec The number of arcseconds.
      * @param int $sign -1 if the Angle is negative, 1 (or omitted) otherwise.
-     * @return self A new Angle in degrees with a magnitude equal to the sum of the parts.
+     * @return static A new Angle in degrees with a magnitude equal to the sum of the parts.
      * @throws TypeError If any of the values are not numbers.
      * @throws ValueError If any of the values are non-finite or negative.
      */
-    public static function fromParts(
-        int|float $degrees = 0,
-        int|float $arcmin = 0,
-        int|float $arcsec = 0,
-        int $sign = 1
-    ): self {
+    public static function fromParts(float $degrees = 0, float $arcmin = 0, float $arcsec = 0, int $sign = 1): static
+    {
         return self::fromPartsArray([
             'deg'    => $degrees,
             'arcmin' => $arcmin,
@@ -174,11 +170,8 @@ class Angle extends Measurement
      * @throws ValueError If any arguments are invalid.
      */
     #[Override]
-    public function formatParts(
-        string $smallestUnit = 'arcsec',
-        ?int $precision = null,
-        bool $showZeros = true
-    ): string {
+    public function formatParts(string $smallestUnit = 'arcsec', ?int $precision = null, bool $showZeros = true): string
+    {
         return parent::formatParts($smallestUnit, $precision, $showZeros);
     }
 
