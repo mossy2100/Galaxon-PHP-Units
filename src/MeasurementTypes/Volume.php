@@ -9,7 +9,7 @@ use Override;
 
 class Volume extends Measurement
 {
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Volume measurements.

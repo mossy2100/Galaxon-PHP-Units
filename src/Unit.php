@@ -47,7 +47,7 @@ class Unit
 
     // endregion
 
-    // region Computed properties
+    // region Property hooks
 
     // PHP_CodeSniffer doesn't know about property hooks yet.
     // phpcs:disable PSR2.Classes.PropertyDeclaration
@@ -131,7 +131,7 @@ class Unit
 
     // endregion
 
-    // region Formatting
+    // region Conversion methods
 
     /**
      * Format the unit as a string for display.

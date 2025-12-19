@@ -9,7 +9,7 @@ use Override;
 
 class Area extends Measurement
 {
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Area measurements.

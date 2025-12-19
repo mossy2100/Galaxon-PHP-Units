@@ -9,7 +9,7 @@ use Override;
 
 class Mass extends Measurement
 {
-    // region Physical constants
+    // region Factory methods
 
     /**
      * Get the mass of an electron.
@@ -43,7 +43,23 @@ class Mass extends Measurement
 
     // endregion
 
-    // region Measurement methods
+    // region Modification methods
+
+    /**
+     * Use British (imperial) ton instead of US ton.
+     *
+     * Default:                   1 ton = 2000 lb (short ton)
+     * After calling this method: 1 ton = 2240 lb (long ton)
+     */
+    public static function useBritishUnits(): void
+    {
+        // Update the conversion from ton to lb.
+        self::getUnitConverter()->addConversion('ton', 'lb', 2240);
+    }
+
+    // endregion
+
+    // region Extraction methods
 
     /**
      * Get the units for Mass measurements.
@@ -83,18 +99,6 @@ class Mass extends Measurement
             // Use US short ton by default.
             ['ton', 'lb', 2000],
         ];
-    }
-
-    /**
-     * Use British (imperial) ton instead of US ton.
-     *
-     * Default:                   1 ton = 2000 lb (short ton)
-     * After calling this method: 1 ton = 2240 lb (long ton)
-     */
-    public static function useBritishUnits(): void
-    {
-        // Update the conversion from ton to lb.
-        self::getUnitConverter()->addConversion('ton', 'lb', 2240);
     }
 
     // endregion

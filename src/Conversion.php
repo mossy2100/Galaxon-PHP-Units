@@ -55,6 +55,10 @@ class Conversion implements Stringable
      */
     public readonly FloatWithError $offset;
 
+    // endregion
+
+    // region Property hooks
+
     // PHPCS doesn't know property hooks yet.
     // phpcs:disable PSR2.Classes.PropertyDeclaration
     // phpcs:disable Generic.WhiteSpace.ScopeIndent.IncorrectExact
@@ -119,7 +123,7 @@ class Conversion implements Stringable
 
     // endregion
 
-    // region Apply a conversion
+    // region Application methods
 
     /**
      * Apply conversion to an input value.
@@ -135,7 +139,7 @@ class Conversion implements Stringable
 
     // endregion
 
-    // region Methods to transform conversions into new ones
+    // region Transformation methods
 
     /**
      * Invert this conversion to go from final unit back to initial unit.
@@ -271,7 +275,7 @@ class Conversion implements Stringable
 
     // endregion
 
-    // region Stringable implementation
+    // region Conversion methods
 
     /**
      * Convert this conversion to a string representation.

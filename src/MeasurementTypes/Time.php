@@ -70,7 +70,7 @@ class Time extends Measurement
 
     // endregion
 
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Time measurements.
@@ -117,84 +117,7 @@ class Time extends Measurement
 
     // endregion
 
-    // region Methods for working with time as parts
-
-    /**
-     * Ordered list of Time unit abbreviations from largest (years) to smallest (seconds).
-     * Used for parts decomposition and validation.
-     *
-     * @return array<int|string, string>
-     */
-    #[Override]
-    public static function getPartUnits(): array
-    {
-        return ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
-    }
-
-    /**
-     * Create a Time as a sum of times in different units.
-     *
-     * All parts must be non-negative.
-     * If the Time is negative, set the $sign parameter to -1.
-     *
-     * NB: This method doesn't include a parameter for weeks, as this could be confusing and lead to bugs.
-     * Many date and time constructors don't include a parameter for weeks, and only have the 6 usual ones.
-     * So, this design is following the "Principle of Least Surprise".
-     * If you need to create a Time from weeks, you can convert weeks to days, or use fromPartsArray() instead, which
-     * accepts a 'w' key.
-     *
-     * @param float $years The number of years.
-     * @param float $months The number of months.
-     * @param float $days The number of days.
-     * @param float $hours The number of hours.
-     * @param float $minutes The number of minutes.
-     * @param float $seconds The number of seconds.
-     * @param int $sign -1 if the Time is negative, 1 (or omitted) otherwise.
-     * @return static A new Time in seconds with a magnitude equal to the sum of the parts.
-     * @throws TypeError If any of the values are not numbers.
-     * @throws ValueError If any of the values are non-finite or negative.
-     */
-    public static function fromParts(
-        float $years = 0,
-        float $months = 0,
-        float $days = 0,
-        float $hours = 0,
-        float $minutes = 0,
-        float $seconds = 0,
-        int $sign = 1
-    ): static {
-        return self::fromPartsArray([
-            'y'   => $years,
-            'mo'  => $months,
-            'd'   => $days,
-            'h'   => $hours,
-            'min' => $minutes,
-            's'   => $seconds,
-            'sign' => $sign
-        ]);
-    }
-
-    /**
-     * Format time as component parts with units.
-     *
-     * Returns a string like "1y 3mo 2w 4d 12h 34min 56.789s".
-     * Units other than the smallest unit are shown as integers.
-     *
-     * @param string $smallestUnit The smallest unit to include (default 's').
-     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
-     * @param bool $showZeros If true, show all components including zeros (default false for Time).
-     * @return string Formatted time string.
-     * @throws ValueError If any arguments are invalid.
-     */
-    #[Override]
-    public function formatParts(string $smallestUnit = 's', ?int $precision = null, bool $showZeros = false): string
-    {
-        return parent::formatParts($smallestUnit, $precision, $showZeros);
-    }
-
-    // endregion
-
-    // region Methods for interoperation with DateInterval
+    // region Conversion methods
 
     /**
      * Convert time to a DateInterval specification string.
@@ -268,6 +191,83 @@ class Time extends Measurement
         }
 
         return $dateInterval;
+    }
+
+    // endregion
+
+    // region Part-related methods
+
+    /**
+     * Ordered list of Time unit abbreviations from largest (years) to smallest (seconds).
+     * Used for parts decomposition and validation.
+     *
+     * @return array<int|string, string>
+     */
+    #[Override]
+    public static function getPartUnits(): array
+    {
+        return ['y', 'mo', 'w', 'd', 'h', 'min', 's'];
+    }
+
+    /**
+     * Create a Time as a sum of times in different units.
+     *
+     * All parts must be non-negative.
+     * If the Time is negative, set the $sign parameter to -1.
+     *
+     * NB: This method doesn't include a parameter for weeks, as this could be confusing and lead to bugs.
+     * Many date and time constructors don't include a parameter for weeks, and only have the 6 usual ones.
+     * So, this design is following the "Principle of Least Surprise".
+     * If you need to create a Time from weeks, you can convert weeks to days, or use fromPartsArray() instead, which
+     * accepts a 'w' key.
+     *
+     * @param float $years The number of years.
+     * @param float $months The number of months.
+     * @param float $days The number of days.
+     * @param float $hours The number of hours.
+     * @param float $minutes The number of minutes.
+     * @param float $seconds The number of seconds.
+     * @param int $sign -1 if the Time is negative, 1 (or omitted) otherwise.
+     * @return static A new Time in seconds with a magnitude equal to the sum of the parts.
+     * @throws TypeError If any of the values are not numbers.
+     * @throws ValueError If any of the values are non-finite or negative.
+     */
+    public static function fromParts(
+        float $years = 0,
+        float $months = 0,
+        float $days = 0,
+        float $hours = 0,
+        float $minutes = 0,
+        float $seconds = 0,
+        int $sign = 1
+    ): static {
+        return self::fromPartsArray([
+            'y'   => $years,
+            'mo'  => $months,
+            'd'   => $days,
+            'h'   => $hours,
+            'min' => $minutes,
+            's'   => $seconds,
+            'sign' => $sign
+        ]);
+    }
+
+    /**
+     * Format time as component parts with units.
+     *
+     * Returns a string like "1y 3mo 2w 4d 12h 34min 56.789s".
+     * Units other than the smallest unit are shown as integers.
+     *
+     * @param string $smallestUnit The smallest unit to include (default 's').
+     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
+     * @param bool $showZeros If true, show all components including zeros (default false for Time).
+     * @return string Formatted time string.
+     * @throws ValueError If any arguments are invalid.
+     */
+    #[Override]
+    public function formatParts(string $smallestUnit = 's', ?int $precision = null, bool $showZeros = false): string
+    {
+        return parent::formatParts($smallestUnit, $precision, $showZeros);
     }
 
     // endregion

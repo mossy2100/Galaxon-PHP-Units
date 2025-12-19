@@ -44,7 +44,7 @@ class Temperature extends Measurement
 
     // endregion
 
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Temperature measurements.
@@ -74,6 +74,10 @@ class Temperature extends Measurement
             ['C', 'F', 1.8, 32],
         ];
     }
+
+    // endregion
+
+    // region Formatting methods
 
     /**
      * Format the unit.

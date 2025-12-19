@@ -78,7 +78,7 @@ class Angle extends Measurement
 
     // endregion
 
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Angle measurements.
@@ -119,60 +119,94 @@ class Angle extends Measurement
 
     // endregion
 
-    // region Methods for working with angles in degrees, arcminutes, and arcseconds
+    // region Comparison methods
 
     /**
-     * Ordered list of angle units from largest (degrees) to smallest (arcseconds).
-     * Used for parts decomposition and validation.
+     * Check if this Angle is approximately equal to another.
      *
-     * @return array<int|string, string>
+     * Overrides the parent method to use different default tolerances for comparing Angles.
+     * For Angles, we want to compare the absolute difference in radians.
+     *
+     * @param mixed $other The value to compare with.
+     * @param float $relTol The relative tolerance (default 0).
+     * @param float $absTol The absolute tolerance (default 1e-9).
+     * @return bool True if the values are equal, false otherwise (including for incompatible types).
      */
     #[Override]
-    public static function getPartUnits(): array
+    public function approxEqual(mixed $other, float $relTol = 0, float $absTol = self::RAD_EPSILON): bool
     {
-        return ['deg' => '°', 'arcmin' => '′', 'arcsec' => '″'];
+        // Check for incompatible types.
+        if (!$other instanceof self) {
+            return false;
+        }
+
+        // Convert both to radians.
+        $thisRad = $this->unit === 'rad' ? $this->value : $this->to('rad')->value;
+        $otherRad = $other->unit === 'rad' ? $other->value : $other->to('rad')->value;
+
+        // Compare the values.
+        return Floats::approxEqual($thisRad, $otherRad, $relTol, $absTol);
     }
 
-    /**
-     * Create an Angle as a sum of angles in different units.
-     *
-     * All parts must be non-negative.
-     * If the Angle is negative, set the $sign parameter to -1.
-     *
-     * @param float $degrees The number of degrees.
-     * @param float $arcmin The number of arcminutes.
-     * @param float $arcsec The number of arcseconds.
-     * @param int $sign -1 if the Angle is negative, 1 (or omitted) otherwise.
-     * @return static A new Angle in degrees with a magnitude equal to the sum of the parts.
-     * @throws TypeError If any of the values are not numbers.
-     * @throws ValueError If any of the values are non-finite or negative.
-     */
-    public static function fromParts(float $degrees = 0, float $arcmin = 0, float $arcsec = 0, int $sign = 1): static
-    {
-        return self::fromPartsArray([
-            'deg'    => $degrees,
-            'arcmin' => $arcmin,
-            'arcsec' => $arcsec,
-            'sign'   => $sign
-        ]);
-    }
+    // endregion
+
+    // region Transformation methods
 
     /**
-     * Format angle as component parts (degrees, arcminutes, arcseconds).
+     * Normalize an angle to a standard range.
      *
-     * Returns a string like "12° 34′ 56.789″".
-     * Units other than the smallest unit are shown as integers.
+     * The range of values varies depending on the $unitsPerTurn parameter *and* the $signed flag.
      *
-     * @param string $smallestUnit The smallest unit to include (default 'arcsec').
-     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
-     * @param bool $showZeros If true, show all components including zeros (default true for Angle/DMS notation).
-     * @return string Formatted angle string.
-     * @throws ValueError If any arguments are invalid.
+     * If $signed is true (default), the range is (-$unitsPerTurn/2, $unitsPerTurn/2]
+     * This means the minimum value is *excluded* in the range, while the maximum value is *included*.
+     * For radians, this is (-π, π]
+     * For degrees, this is (-180, 180]
+     *
+     * If $signed is false, the range is [0, $unitsPerTurn)
+     * This means the minimum value is *included* in the range, while the maximum value is *excluded*.
+     * For radians, this is [0, τ)
+     * For degrees, this is [0, 360)
+     *
+     * @see https://en.wikipedia.org/wiki/Principal_value#Complex_argument
+     *
+     * @param bool $signed If true, wrap to the signed range; otherwise wrap to the unsigned range.
+     * @return self A new angle with the wrapped value.
+     *
+     * @example
+     * $alpha = new Angle(270, 'deg');
+     * $wrapped = $alpha->wrap(); // now $wrapped->value == -90
      */
-    #[Override]
-    public function formatParts(string $smallestUnit = 'arcsec', ?int $precision = null, bool $showZeros = true): string
+    public function wrap(bool $signed = true): self
     {
-        return parent::formatParts($smallestUnit, $precision, $showZeros);
+        // Get the units per turn for the current unit.
+        $unitsPerTurn = new self(1, 'turn')->to($this->unit)->value;
+
+        // Reduce using fmod to avoid large magnitudes.
+        // $r will be in the range [0, $unitsPerTurn) if $value is positive, or (-$unitsPerTurn, 0] if negative.
+        $r = fmod($this->value, $unitsPerTurn);
+
+        // Adjust to fit within range bounds.
+        // The value may be outside the range due to the sign of $value or the value of $signed.
+        if ($signed) {
+            // Signed range is (-$half, $half]
+            $half = $unitsPerTurn / 2.0;
+            if ($r <= -$half) {
+                $r += $unitsPerTurn;
+            } elseif ($r > $half) {
+                $r -= $unitsPerTurn;
+            }
+        } else {
+            // Unsigned range is [0, $unitsPerTurn)
+            if ($r < 0.0) {
+                $r += $unitsPerTurn;
+            }
+        }
+
+        // Canonicalize -0.0 to 0.0.
+        $r = Floats::normalizeZero($r);
+
+        // Return a new Angle with the wrapped value.
+        return new self($r, $this->unit);
     }
 
     // endregion
@@ -363,89 +397,60 @@ class Angle extends Measurement
 
     // endregion
 
-    // region Instance methods
+    // region Part-related methods
 
     /**
-     * Normalize an angle to a standard range.
+     * Ordered list of angle units from largest (degrees) to smallest (arcseconds).
+     * Used for parts decomposition and validation.
      *
-     * The range of values varies depending on the $unitsPerTurn parameter *and* the $signed flag.
-     *
-     * If $signed is true (default), the range is (-$unitsPerTurn/2, $unitsPerTurn/2]
-     * This means the minimum value is *excluded* in the range, while the maximum value is *included*.
-     * For radians, this is (-π, π]
-     * For degrees, this is (-180, 180]
-     *
-     * If $signed is false, the range is [0, $unitsPerTurn)
-     * This means the minimum value is *included* in the range, while the maximum value is *excluded*.
-     * For radians, this is [0, τ)
-     * For degrees, this is [0, 360)
-     *
-     * @see https://en.wikipedia.org/wiki/Principal_value#Complex_argument
-     *
-     * @param bool $signed If true, wrap to the signed range; otherwise wrap to the unsigned range.
-     * @return self A new angle with the wrapped value.
-     *
-     * @example
-     * $alpha = new Angle(270, 'deg');
-     * $wrapped = $alpha->wrap(); // now $wrapped->value == -90
+     * @return array<int|string, string>
      */
-    public function wrap(bool $signed = true): self
+    #[Override]
+    public static function getPartUnits(): array
     {
-        // Get the units per turn for the current unit.
-        $unitsPerTurn = new self(1, 'turn')->to($this->unit)->value;
-
-        // Reduce using fmod to avoid large magnitudes.
-        // $r will be in the range [0, $unitsPerTurn) if $value is positive, or (-$unitsPerTurn, 0] if negative.
-        $r = fmod($this->value, $unitsPerTurn);
-
-        // Adjust to fit within range bounds.
-        // The value may be outside the range due to the sign of $value or the value of $signed.
-        if ($signed) {
-            // Signed range is (-$half, $half]
-            $half = $unitsPerTurn / 2.0;
-            if ($r <= -$half) {
-                $r += $unitsPerTurn;
-            } elseif ($r > $half) {
-                $r -= $unitsPerTurn;
-            }
-        } else {
-            // Unsigned range is [0, $unitsPerTurn)
-            if ($r < 0.0) {
-                $r += $unitsPerTurn;
-            }
-        }
-
-        // Canonicalize -0.0 to 0.0.
-        $r = Floats::normalizeZero($r);
-
-        // Return a new Angle with the wrapped value.
-        return new self($r, $this->unit);
+        return ['deg' => '°', 'arcmin' => '′', 'arcsec' => '″'];
     }
 
     /**
-     * Check if this Angle is approximately equal to another.
+     * Create an Angle as a sum of angles in different units.
      *
-     * Overrides the parent method to use different default tolerances for comparing Angles.
-     * For Angles, we want to compare the absolute difference in radians.
+     * All parts must be non-negative.
+     * If the Angle is negative, set the $sign parameter to -1.
      *
-     * @param mixed $other The value to compare with.
-     * @param float $relTol The relative tolerance (default 0).
-     * @param float $absTol The absolute tolerance (default 1e-9).
-     * @return bool True if the values are equal, false otherwise (including for incompatible types).
+     * @param float $degrees The number of degrees.
+     * @param float $arcmin The number of arcminutes.
+     * @param float $arcsec The number of arcseconds.
+     * @param int $sign -1 if the Angle is negative, 1 (or omitted) otherwise.
+     * @return static A new Angle in degrees with a magnitude equal to the sum of the parts.
+     * @throws TypeError If any of the values are not numbers.
+     * @throws ValueError If any of the values are non-finite or negative.
      */
-    public function approxEqual(mixed $other, float $relTol = 0, float $absTol = self::RAD_EPSILON): bool
+    public static function fromParts(float $degrees = 0, float $arcmin = 0, float $arcsec = 0, int $sign = 1): static
     {
-        // Check for incompatible types.
-        if (!$other instanceof self) {
-            return false;
-        }
+        return self::fromPartsArray([
+            'deg'    => $degrees,
+            'arcmin' => $arcmin,
+            'arcsec' => $arcsec,
+            'sign'   => $sign
+        ]);
+    }
 
-        // Convert both to radians.
-        $thisRad = $this->unit === 'rad' ? $this->value : $this->to('rad')->value;
-        $otherRad = $other->unit === 'rad' ? $other->value : $other->to('rad')->value;
-
-        // Compare the values.
-        return Floats::approxEqual($thisRad, $otherRad, $relTol, $absTol);
+    /**
+     * Format angle as component parts (degrees, arcminutes, arcseconds).
+     *
+     * Returns a string like "12° 34′ 56.789″".
+     * Units other than the smallest unit are shown as integers.
+     *
+     * @param string $smallestUnit The smallest unit to include (default 'arcsec').
+     * @param ?int $precision The number of decimal places for rounding the smallest unit, or null for no rounding.
+     * @param bool $showZeros If true, show all components including zeros (default true for Angle/DMS notation).
+     * @return string Formatted angle string.
+     * @throws ValueError If any arguments are invalid.
+     */
+    #[Override]
+    public function formatParts(string $smallestUnit = 'arcsec', ?int $precision = null, bool $showZeros = true): string
+    {
+        return parent::formatParts($smallestUnit, $precision, $showZeros);
     }
 
     // endregion

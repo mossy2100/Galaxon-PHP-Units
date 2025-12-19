@@ -32,6 +32,10 @@ class FloatWithError implements Stringable
      */
     private(set) float $absoluteError;
 
+    // endregion
+
+    // region Property hooks
+
     // PHPCS doesn't know property hooks yet.
     // phpcs:disable PSR2.Classes.PropertyDeclaration
     // phpcs:disable Generic.WhiteSpace.ScopeIndent.IncorrectExact
@@ -84,7 +88,7 @@ class FloatWithError implements Stringable
 
     // endregion
 
-    // region Arithmetic operations with error propagation
+    // region Arithmetic methods
 
     /**
      * Add another FloatWithError to this one.
@@ -252,7 +256,7 @@ class FloatWithError implements Stringable
 
     // endregion
 
-    // region Stringable implementation
+    // region Conversion methods
 
     /**
      * Calculate the number of reliable significant digits.

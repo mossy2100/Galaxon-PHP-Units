@@ -9,7 +9,7 @@ use Override;
 
 class Length extends Measurement
 {
-    // region Physical constants
+    // region Factory methods
 
     /**
      * Get the Planck length.
@@ -23,7 +23,7 @@ class Length extends Measurement
 
     // endregion
 
-    // region Measurement methods
+    // region Extraction methods
 
     /**
      * Get the units for Length measurements.
